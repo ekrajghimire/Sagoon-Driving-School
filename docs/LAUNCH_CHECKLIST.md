@@ -5,7 +5,7 @@ Tick each item before telling customers about the site.
 ## Accounts & keys (all free)
 - [ ] Neon database created (Sydney region); `DATABASE_URL` + `DIRECT_URL` set on host
 - [ ] `BETTER_AUTH_SECRET` set to a new random value (`openssl rand -base64 32`)
-- [ ] `NEXT_PUBLIC_SITE_URL` and `BETTER_AUTH_URL` = your final `https://` domain
+- [ ] Live site address correct: confirmation email links open your real domain, not `localhost` (automatic on Vercel; optionally pin it with `NEXT_PUBLIC_SITE_URL`)
 - [ ] `OWNER_EMAIL` set, and you've registered with it, so `/admin` works
 - [ ] Google Calendar: API enabled, service account created, calendar shared with "Make changes to events", 3 `GOOGLE_*` calendar variables set
 - [ ] Test: make a booking, see it appear in Google Calendar; add a Busy event, see that time disappear from `/book`

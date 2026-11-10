@@ -1,10 +1,37 @@
+/**
+ * The public address of the site, used in emails, the sitemap, calendar events and login.
+ * Works online with no setup on Vercel:
+ *   1. NEXT_PUBLIC_SITE_URL, if you set it (e.g. your own domain)
+ *   2. otherwise Vercel's production address (your custom domain or *.vercel.app)
+ *   3. otherwise the address of a Vercel preview deployment
+ *   4. otherwise http://localhost:3000 (only when running on your own computer)
+ */
+/** A localhost address copied into Vercel by mistake is ignored online. */
+export function usableUrl(v?: string) {
+  if (!v) return undefined;
+  if (process.env.VERCEL && /localhost|127\.0\.0\.1/.test(v)) return undefined;
+  return v;
+}
+
+function resolveSiteUrl() {
+  const withHttps = (host?: string) => (host ? `https://${host.replace(/^https?:\/\//, "")}` : undefined);
+  const url =
+    usableUrl(process.env.NEXT_PUBLIC_SITE_URL) ||
+    (process.env.VERCEL_ENV === "preview" ? withHttps(process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL) : undefined) ||
+    withHttps(process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) ||
+    withHttps(process.env.VERCEL_PROJECT_PRODUCTION_URL) ||
+    withHttps(process.env.VERCEL_URL) ||
+    "http://localhost:3000";
+  return url.replace(/\/+$/, "");
+}
+
 // Static site constants used by layouts and metadata (safe for static rendering).
 // Business values that change often (prices, hours, suburbs) live in the database and are edited in /admin.
 export const SITE = {
   name: "Sagoon Driving School",
   shortName: "Sagoon",
   tagline: "Calm, patient automatic driving lessons in Rockdale & St George",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  url: resolveSiteUrl(),
   phoneDisplay: "0451 634 722",
   phoneTel: "+61451634722",
   whatsapp: "61451634722",

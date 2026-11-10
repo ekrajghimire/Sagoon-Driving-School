@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "./db";
+import { SITE, usableUrl } from "./site";
 
 const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const ownerEmails = (process.env.OWNER_EMAIL ?? "")
@@ -12,7 +13,11 @@ const ownerEmails = (process.env.OWNER_EMAIL ?? "")
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
-  baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL,
+  baseURL: usableUrl(process.env.BETTER_AUTH_URL) || SITE.url,
+  // Also accept logins on Vercel's own addresses (e.g. *.vercel.app and preview deployments).
+  trustedOrigins: [process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+    .filter((h): h is string => Boolean(h))
+    .map((h) => `https://${h}`),
   secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
   socialProviders: googleEnabled

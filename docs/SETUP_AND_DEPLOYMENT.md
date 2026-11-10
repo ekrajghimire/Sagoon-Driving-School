@@ -74,11 +74,24 @@ Without SMTP settings, emails are only printed to the server log, which is handy
 
 The app is a standard Next.js app and runs on any Node host.
 
-### Option A — Vercel (the original request)
+### Option A — Vercel (chosen)
 1. **vercel.com → Add New → Project**, import the GitHub repo.
 2. Build command: `npm run vercel-build` (runs migrations, then builds).
-3. Add all environment variables from `.env.example` (Production and Preview).
-4. Deploy. Then **Settings → Domains** to add your domain.
+3. Add environment variables (**Settings → Environment Variables**, tick Production and Preview):
+
+   | Variable | Needed? |
+   | --- | --- |
+   | `DATABASE_URL`, `DIRECT_URL` | **Required**: from Neon (step 2) |
+   | `BETTER_AUTH_SECRET` | **Required**: run `openssl rand -base64 32` and paste the result |
+   | `OWNER_EMAIL` | **Required**: your email, so you become the owner |
+   | `CRON_SECRET` | **Required** for reminders (step 7) |
+   | `GOOGLE_CALENDAR_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` | For calendar sync (step 3) |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | For emails (step 4) |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional: Google login (step 5) |
+   | `NEXT_PUBLIC_SITE_URL`, `BETTER_AUTH_URL` | **Not needed**: the site detects its Vercel address automatically |
+
+   Do **not** copy your local `.env` into Vercel. Its `localhost` values only work on your computer (the site ignores them online anyway).
+4. Deploy. Your site is live at `https://<project>.vercel.app`. Then **Settings → Domains** to add your own domain.
 
 > ⚠️ Vercel's free **Hobby** plan is for **non-commercial, personal use**. A driving school is a business, so for the live site either upgrade to Vercel Pro (US$20/month) or use Option B. Hobby is fine for testing and previews.
 
@@ -87,7 +100,7 @@ The app is a standard Next.js app and runs on any Node host.
 2. Build command: `npx prisma migrate deploy && npm run build`.
 3. Add the same environment variables. Deploy, then add your domain.
 
-Whichever host you use, set `NEXT_PUBLIC_SITE_URL` and `BETTER_AUTH_URL` to your final `https://` domain and redeploy.
+On Vercel the site works out its own address (your custom domain once added, otherwise `*.vercel.app`). On other hosts, set `NEXT_PUBLIC_SITE_URL` to your `https://` domain and redeploy.
 
 ## 7. Scheduled jobs (reminders) — GitHub Actions (free)
 

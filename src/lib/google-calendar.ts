@@ -1,6 +1,7 @@
 import "server-only";
 import { JWT } from "google-auth-library";
 import { TZ } from "./time";
+import { SITE } from "./site";
 import type { BusyInterval } from "./availability";
 import { sydneyDayRange } from "./time";
 
@@ -107,7 +108,7 @@ export type CalendarBooking = {
 };
 
 function eventBody(b: CalendarBooking) {
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const site = SITE.url;
   return {
     summary: `🚗 ${b.customerName} — ${b.title}`,
     location: `${b.pickupAddress}, ${b.pickupSuburb} NSW`,
