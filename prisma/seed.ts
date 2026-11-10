@@ -22,7 +22,17 @@ const HOLIDAYS: [string, string][] = [
   ["2027-12-28", "Boxing Day (additional day)"],
 ];
 
+// --if-empty: used on every Vercel deploy — loads starting data only into a brand-new database,
+//              so it never overwrites prices or content you have edited in /admin.
+// --refresh-articles: overwrite the built-in Learner tips articles with the versions in seed-content.
+const IF_EMPTY = process.argv.includes("--if-empty");
+const REFRESH_ARTICLES = process.argv.includes("--refresh-articles");
+
 async function main() {
+  if (IF_EMPTY && (await prisma.lessonType.count()) > 0) {
+    console.log("✔ Database already has data — skipping seed");
+    return;
+  }
   await prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1, suburbs: SUBURBS } });
 
   let instructor = await prisma.instructor.findFirst();
@@ -79,7 +89,7 @@ async function main() {
   for (const p of POSTS) {
     await prisma.post.upsert({
       where: { slug: p.slug },
-      update: { title: p.title, excerpt: p.excerpt, content: p.content, category: p.category, readMins: p.readMins },
+      update: REFRESH_ARTICLES ? { title: p.title, excerpt: p.excerpt, content: p.content, category: p.category, readMins: p.readMins } : {},
       create: { ...p, publishedAt: new Date() },
     });
   }

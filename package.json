@@ -13,8 +13,9 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
-    "test:race": "tsx --conditions=react-server tests/integration/race.ts"
+    "vercel-build": "prisma generate && prisma migrate deploy && tsx prisma/seed.ts --if-empty && next build",
+    "test:race": "tsx --conditions=react-server tests/integration/race.ts",
+    "db:refresh-articles": "tsx prisma/seed.ts --refresh-articles"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

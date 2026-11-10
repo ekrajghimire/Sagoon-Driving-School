@@ -6,7 +6,15 @@ import { auth } from "./auth";
 import { prisma } from "./db";
 
 export const getSession = cache(async () => {
-  return auth.api.getSession({ headers: await headers() });
+  const h = await headers();
+  try {
+    return await auth.api.getSession({ headers: h });
+  } catch (e) {
+    // e.g. BETTER_AUTH_SECRET missing on the host. Treat as logged out so public pages
+    // (booking as a guest) keep working; the error still shows in the server logs.
+    console.error("[auth] session check failed — is BETTER_AUTH_SECRET set?", e);
+    return null;
+  }
 });
 
 /** Current user row from the database (role is always read from the DB, never trusted from the client). */
