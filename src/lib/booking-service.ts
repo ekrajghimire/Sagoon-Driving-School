@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma, getSettings, getInstructor } from "./db";
 import { Prisma } from "@/generated/prisma/client";
-import { generateSlots, workingHoursFor, type BusyInterval, type Slot } from "./availability";
+import { generateSlots, generateSlotGrid, workingHoursFor, type BusyInterval, type Slot, type GridSlot } from "./availability";
 import { sydneyDayRange, sydneyToUtc, todaySydney, addDays, fmtDate } from "./time";
 import { calendarConfigured, getGoogleBusy, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { sendEmail, emails } from "./email";
@@ -64,7 +64,7 @@ export async function getAvailability(
   date: string,
   durationMins: number,
   opts: { excludeBookingId?: string; strictCalendar?: boolean; db?: Db; googleBusy?: BusyInterval[] } = {},
-): Promise<{ slots: Slot[]; calendarOk: boolean }> {
+): Promise<{ slots: Slot[]; grid: GridSlot[]; calendarOk: boolean }> {
   const db = opts.db ?? prisma;
   const ctx = await loadDayContext(db, date, opts.excludeBookingId);
   let google = opts.googleBusy ?? [];
@@ -80,7 +80,7 @@ export async function getAvailability(
       }
     }
   }
-  const slots = generateSlots({
+  const grid = generateSlotGrid({
     date,
     durationMins,
     workingHours: ctx.hours,
@@ -92,7 +92,8 @@ export async function getAvailability(
     maxAdvanceDays: ctx.settings.maxAdvanceDays,
     now: new Date(),
   });
-  return { slots, calendarOk };
+  const slots = grid.filter((g) => g.available);
+  return { slots, grid, calendarOk };
 }
 
 /** Which of the next N days have at least one slot (for the calendar picker). */

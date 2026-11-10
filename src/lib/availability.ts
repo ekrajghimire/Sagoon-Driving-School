@@ -27,6 +27,8 @@ export type AvailabilityInput = {
 };
 
 export type Slot = { startMin: number; start: Date; end: Date; label: string };
+/** A start time within working hours, with whether it can be booked and, if not, why. */
+export type GridSlot = Slot & { available: boolean; reason?: "booked" | "too_soon" };
 
 export function overlapsWithBuffer(start: Date, end: Date, busy: BusyInterval[], bufferMins: number) {
   const buf = bufferMins * 60_000;
@@ -42,24 +44,37 @@ export function isDateBookable(input: Pick<AvailabilityInput, "date" | "maxAdvan
   return input.date >= today && input.date <= addDays(today, input.maxAdvanceDays);
 }
 
-export function generateSlots(input: AvailabilityInput): Slot[] {
+/**
+ * Every start time inside working hours for the day, each marked available or not
+ * ("booked" = clashes with a lesson, blocked time or Google Calendar event incl. travel buffer;
+ *  "too_soon" = inside the minimum-notice window). Closed days return [].
+ */
+export function generateSlotGrid(input: AvailabilityInput): GridSlot[] {
   if (input.isHoliday || !isDateBookable(input)) return [];
   const earliest = input.now.getTime() + input.minNoticeHours * 3_600_000;
-  const slots: Slot[] = [];
+  const grid: GridSlot[] = [];
   const seen = new Set<number>();
 
   for (const wh of [...input.workingHours].sort((a, b) => a.startMin - b.startMin)) {
     for (let m = wh.startMin; m + input.durationMins <= wh.endMin; m += input.slotIntervalMins) {
       if (seen.has(m)) continue;
+      seen.add(m);
       const start = sydneyToUtc(input.date, m);
       const end = new Date(start.getTime() + input.durationMins * 60_000);
-      if (start.getTime() < earliest) continue;
-      if (overlapsWithBuffer(start, end, input.busy, input.bufferMins)) continue;
-      seen.add(m);
-      slots.push({ startMin: m, start, end, label: fmtTime(start) });
+      const slot = { startMin: m, start, end, label: fmtTime(start) };
+      if (start.getTime() < earliest) grid.push({ ...slot, available: false, reason: "too_soon" });
+      else if (overlapsWithBuffer(start, end, input.busy, input.bufferMins)) grid.push({ ...slot, available: false, reason: "booked" });
+      else grid.push({ ...slot, available: true });
     }
   }
-  return slots;
+  return grid.sort((a, b) => a.startMin - b.startMin);
+}
+
+/** Only the bookable start times. */
+export function generateSlots(input: AvailabilityInput): Slot[] {
+  return generateSlotGrid(input)
+    .filter((s) => s.available)
+    .map(({ startMin, start, end, label }) => ({ startMin, start, end, label }));
 }
 
 export function workingHoursFor<T extends { weekday: number }>(date: string, rows: T[]) {

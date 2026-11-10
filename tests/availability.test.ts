@@ -73,3 +73,19 @@ describe("availability engine", () => {
     expect(generateSlots(base({ durationMins: 90 })).at(-1)!.label).toBe("5:30pm");
   });
 });
+
+import { generateSlotGrid } from "../src/lib/availability";
+describe("slot grid (dimmed times)", () => {
+  it("keeps taken and too-soon times in the list, marked unavailable", () => {
+    const busy = [{ start: sydneyToUtc("2026-11-16", 600), end: sydneyToUtc("2026-11-16", 660), source: "booking" as const }];
+    const grid = generateSlotGrid(base({ busy, now: new Date("2026-11-15T19:00:00Z"), minNoticeHours: 2 })); // now = 6am Sydney
+    expect(grid).toHaveLength(23); // every half hour 7:00–18:00 still listed
+    const byLabel = Object.fromEntries(grid.map((g) => [g.label, g]));
+    expect(byLabel["7:30am"]).toMatchObject({ available: false, reason: "too_soon" });
+    expect(byLabel["10:00am"]).toMatchObject({ available: false, reason: "booked" });
+    expect(byLabel["11:30am"]).toMatchObject({ available: true });
+  });
+  it("is empty on closed days", () => {
+    expect(generateSlotGrid(base({ isHoliday: true }))).toHaveLength(0);
+  });
+});

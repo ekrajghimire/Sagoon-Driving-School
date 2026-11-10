@@ -17,9 +17,15 @@ export async function GET(req: NextRequest) {
   const manage = sp.get("manage");
   if (manage) excludeBookingId = (await prisma.booking.findUnique({ where: { manageToken: manage }, select: { id: true } }))?.id;
 
-  const { slots, calendarOk } = await getAvailability(date, duration, { excludeBookingId });
+  const { slots, grid, calendarOk } = await getAvailability(date, duration, { excludeBookingId });
   return NextResponse.json(
-    { date, calendarOk, slots: slots.map((s) => ({ startMin: s.startMin, label: s.label, start: s.start.toISOString() })) },
+    {
+      date,
+      calendarOk,
+      slots: slots.map((s) => ({ startMin: s.startMin, label: s.label, start: s.start.toISOString() })),
+      // All times in working hours; unavailable ones are shown dimmed. Says only "taken", never by whom.
+      grid: grid.map((s) => ({ startMin: s.startMin, label: s.label, available: s.available, reason: s.reason })),
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 export type SlotChoice = { date: string; startMin: number; label: string } | null;
+type TimeOpt = { startMin: number; label: string; available: boolean; reason?: "booked" | "too_soon" };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -47,7 +48,7 @@ export function DateSlotPicker({
   const [date, setDate] = useState<string | null>(initialDate ?? value?.date ?? null);
   // Results are stored with the request key they belong to; "loading" = no result for the current key yet.
   const [month, setMonth] = useState<{ key: string; counts: Record<string, number> }>({ key: "", counts: {} });
-  const [day, setDay] = useState<{ key: string; slots: { startMin: number; label: string }[]; error: string | null }>({ key: "", slots: [], error: null });
+  const [day, setDay] = useState<{ key: string; slots: TimeOpt[]; error: string | null }>({ key: "", slots: [], error: null });
   const monthKey = `${view.y}-${view.m}-${durationMins}-${manageToken ?? ""}`;
   const dayKey = `${date}-${durationMins}-${manageToken ?? ""}`;
   const counts = month.counts;
@@ -91,7 +92,7 @@ export function DateSlotPicker({
       .then((d) => {
         setDay({
           key,
-          slots: d.slots ?? [],
+          slots: (d.grid as TimeOpt[] | undefined) ?? (d.slots ?? []).map((s: TimeOpt) => ({ ...s, available: true })),
           error: d.calendarOk === false ? "Live calendar check is temporarily unavailable — times will be re-checked when you confirm." : null,
         });
         onNoSlots?.(d.slots?.length ? null : date);
@@ -165,25 +166,41 @@ export function DateSlotPicker({
             {loadingSlots ? (
               <p className="flex items-center gap-2 text-muted"><Loader2 className="size-4 animate-spin" /> Checking live availability…</p>
             ) : slots && slots.length ? (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Start time">
-                {slots.map((s) => {
-                  const sel = value?.date === date && value.startMin === s.startMin;
-                  return (
-                    <button
-                      key={s.startMin}
-                      type="button"
-                      role="radio"
-                      aria-checked={sel}
-                      onClick={() => onChange({ date, startMin: s.startMin, label: s.label })}
-                      className={`min-h-11 rounded-xl border text-sm font-semibold ${sel ? "border-brand-700 bg-brand-700 text-white" : "border-line bg-white hover:border-brand-500"}`}
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Start time">
+                  {slots.map((s) => {
+                    const sel = s.available && value?.date === date && value.startMin === s.startMin;
+                    const why = s.reason === "too_soon" ? "Call us" : "Booked";
+                    return (
+                      <button
+                        key={s.startMin}
+                        type="button"
+                        role="radio"
+                        aria-checked={sel}
+                        disabled={!s.available}
+                        aria-label={s.available ? s.label : `${s.label}, not available (${why.toLowerCase()})`}
+                        title={s.available ? undefined : s.reason === "too_soon" ? "Too soon to book online — please call us" : "Already taken"}
+                        onClick={() => s.available && onChange({ date, startMin: s.startMin, label: s.label })}
+                        className={`flex min-h-11 flex-col items-center justify-center rounded-xl border text-sm font-semibold leading-tight ${
+                          !s.available
+                            ? "cursor-not-allowed border-line bg-surface text-slate-400"
+                            : sel
+                              ? "border-brand-700 bg-brand-700 text-white"
+                              : "border-line bg-white hover:border-brand-500"
+                        }`}
+                      >
+                        <span className={s.available ? "" : "line-through"}>{s.label}</span>
+                        {!s.available && <span className="text-[10px] font-medium uppercase tracking-wide">{why}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!slots.some((s) => s.available) && (
+                  <p className="mt-3 rounded-xl bg-surface p-4 text-sm text-muted">This day is fully booked for a lesson of this length. Try another day{onNoSlots ? ", or join the waitlist below" : ""}.</p>
+                )}
+              </>
             ) : (
-              <p className="rounded-xl bg-surface p-4 text-sm text-muted">No times left on this day for a lesson of this length. Try another day{onNoSlots ? ", or join the waitlist below" : ""}.</p>
+              <p className="rounded-xl bg-surface p-4 text-sm text-muted">We&apos;re closed on this day. Please pick another date.</p>
             )}
           </>
         )}
