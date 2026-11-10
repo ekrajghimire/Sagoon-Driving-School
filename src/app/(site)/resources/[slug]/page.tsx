@@ -62,13 +62,13 @@ export default async function ArticlePage({ params }: Props) {
   return (
     <article className="container-x max-w-3xl py-10 sm:py-14">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
-      <Link href="/resources" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline">
-        <ArrowLeft className="size-4" aria-hidden /> All guides
+      <Link href="/resources" className="group inline-flex items-center gap-1 rounded-lg text-sm font-semibold text-brand-700 hover:underline hover:underline-offset-4">
+        <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden /> All guides
       </Link>
-      <p className="mt-6"><Link href={`/resources?category=${encodeURIComponent(post.category)}`} className="badge bg-brand-50 text-brand-700">{post.category}</Link></p>
+      <p className="mt-6"><Link href={`/resources?category=${encodeURIComponent(post.category)}`} className="badge bg-brand-50 px-3 py-1 text-brand-700 transition-colors hover:bg-brand-100">{post.category}</Link></p>
       <h1 className="h1 mt-3">{post.title}</h1>
       <p className="mt-3 text-lg text-muted">{post.excerpt}</p>
-      <p className="mt-3 flex items-center gap-3 text-sm text-muted">
+      <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line pb-6 text-sm text-muted">
         <span className="inline-flex items-center gap-1"><Clock className="size-4" aria-hidden /> {post.readMins} min read</span>
         <span>Updated {fmtDate(post.updatedAt)}</span>
       </p>
@@ -80,7 +80,7 @@ export default async function ArticlePage({ params }: Props) {
         <p>This guide is general information, not legal advice. Rules and requirements change — always confirm the current rules with Transport for NSW or Service NSW before relying on them.</p>
       </aside>
 
-      <div className="mt-10 rounded-2xl bg-brand-700 p-6 text-white sm:p-8">
+      <div className="mt-10 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-600 p-6 text-white sm:p-8">
         <h2 className="text-2xl font-extrabold">Put it into practice</h2>
         <p className="mt-2 text-brand-100">Book a calm, one-on-one lesson in our automatic dual-control car. Free pickup around Rockdale.</p>
         <Link href="/book" className="btn-primary mt-4">Book a lesson</Link>
@@ -92,9 +92,9 @@ export default async function ArticlePage({ params }: Props) {
           <ul className="mt-4 grid gap-4 sm:grid-cols-3">
             {[...related, ...more].map((r) => (
               <li key={r.slug}>
-                <Link href={`/resources/${r.slug}`} className="card block h-full p-4 hover:border-brand-500 sm:p-4">
-                  <p className="font-bold">{r.title}</p>
-                  <p className="mt-1 text-sm text-muted">{r.excerpt}</p>
+                <Link href={`/resources/${r.slug}`} className="card card-hover group block h-full p-4 sm:p-5">
+                  <p className="font-bold text-balance transition-colors group-hover:text-brand-700">{r.title}</p>
+                  <p className="mt-1 line-clamp-3 text-sm text-muted">{r.excerpt}</p>
                 </Link>
               </li>
             ))}

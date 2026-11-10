@@ -50,6 +50,8 @@ export async function joinWaitlist(_: FormState, fd: FormData): Promise<FormStat
   const parsed = waitlistSchema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: "Please enter your name, email and phone." };
   const user = await getCurrentUser();
-  await prisma.waitlistEntry.create({ data: { ...parsed.data, userId: user?.id ?? null } });
+  const email = parsed.data.email.toLowerCase();
+  const already = await prisma.waitlistEntry.findFirst({ where: { date: parsed.data.date, email, notifiedAt: null } });
+  if (!already) await prisma.waitlistEntry.create({ data: { ...parsed.data, email, userId: user?.id ?? null } });
   return { ok: true, message: "You're on the waitlist — we'll email you if a spot opens up that day." };
 }

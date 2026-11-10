@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, CalendarPlus, FileText } from "lucide-react";
 import { prisma, getSettings } from "@/lib/db";
 import { canCustomerChange } from "@/lib/booking-service";
-import { fmtDate, fmtTime, durationLabel } from "@/lib/time";
+import { fmtDate, fmtRange, durationLabel } from "@/lib/time";
 import { aud } from "@/lib/money";
 import { SITE } from "@/lib/site";
 import { ManageBooking } from "./ManageBooking";
@@ -21,6 +21,10 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   if (!b) notFound();
   const settings = await getSettings();
   const due = b.priceCents - b.discountCents;
+  // Split lessons: the other sessions booked together with this one.
+  const group = b.groupRef
+    ? await prisma.booking.findMany({ where: { groupRef: b.groupRef }, orderBy: { startsAt: "asc" }, select: { id: true, manageToken: true, startsAt: true, endsAt: true, status: true } })
+    : [];
 
   return (
     <div className="bg-surface py-10">
@@ -44,7 +48,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
           </div>
           <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
             <div><dt className="text-muted">Date</dt><dd className="font-semibold">{fmtDate(b.startsAt)}</dd></div>
-            <div><dt className="text-muted">Time</dt><dd className="font-semibold">{fmtTime(b.startsAt)} – {fmtTime(b.endsAt)} ({durationLabel(b.durationMins)})</dd></div>
+            <div><dt className="text-muted">Time</dt><dd className="font-semibold">{fmtRange(b.startsAt, b.endsAt)} ({durationLabel(b.durationMins)})</dd></div>
             <div><dt className="text-muted">Pickup</dt><dd className="font-semibold">{b.pickupAddress}, {b.pickupSuburb}</dd></div>
             <div><dt className="text-muted">Car</dt><dd className="font-semibold">Automatic, dual controls</dd></div>
             <div>
@@ -55,6 +59,30 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
             </div>
             <div><dt className="text-muted">Name</dt><dd className="font-semibold">{b.customerName}</dd></div>
           </dl>
+
+          {group.length > 1 && (
+            <div className="mt-6 rounded-xl border border-brand-100 bg-brand-50/60 p-4">
+              <h3 className="text-sm font-bold">Your lesson is split into {group.length} sessions</h3>
+              <ol className="mt-2 space-y-1.5 text-sm">
+                {group.map((g, i) => (
+                  <li key={g.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      <span className="font-semibold">Session {i + 1}:</span> {fmtDate(g.startsAt)}, {fmtRange(g.startsAt, g.endsAt)}
+                      {g.status === "CANCELLED" && <span className="badge ml-2 bg-red-100 text-danger">Cancelled</span>}
+                    </span>
+                    {g.manageToken === token ? (
+                      <span className="badge bg-brand-700 text-white">Viewing</span>
+                    ) : (
+                      <Link href={`/booking/${g.manageToken}`} className="text-sm font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-900">
+                        Manage
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 text-xs text-muted">Each session can be moved or cancelled on its own.</p>
+            </div>
+          )}
 
           {b.status === "CONFIRMED" && (
             <>

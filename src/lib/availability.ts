@@ -1,4 +1,4 @@
-import { sydneyToUtc, fmtTime, weekdayOf, todaySydney, addDays } from "./time";
+import { sydneyToUtc, fmtTime, fmtRange, weekdayOf, todaySydney, addDays } from "./time";
 
 /**
  * Pure availability engine — no database or network access, so it is fully unit-tested.
@@ -26,7 +26,7 @@ export type AvailabilityInput = {
   now: Date;
 };
 
-export type Slot = { startMin: number; start: Date; end: Date; label: string };
+export type Slot = { startMin: number; start: Date; end: Date; label: string; range: string };
 /** A start time within working hours, with whether it can be booked and, if not, why. */
 export type GridSlot = Slot & { available: boolean; reason?: "booked" | "too_soon" };
 
@@ -61,7 +61,7 @@ export function generateSlotGrid(input: AvailabilityInput): GridSlot[] {
       seen.add(m);
       const start = sydneyToUtc(input.date, m);
       const end = new Date(start.getTime() + input.durationMins * 60_000);
-      const slot = { startMin: m, start, end, label: fmtTime(start) };
+      const slot = { startMin: m, start, end, label: fmtTime(start), range: fmtRange(start, end) };
       if (start.getTime() < earliest) grid.push({ ...slot, available: false, reason: "too_soon" });
       else if (overlapsWithBuffer(start, end, input.busy, input.bufferMins)) grid.push({ ...slot, available: false, reason: "booked" });
       else grid.push({ ...slot, available: true });
@@ -74,7 +74,7 @@ export function generateSlotGrid(input: AvailabilityInput): GridSlot[] {
 export function generateSlots(input: AvailabilityInput): Slot[] {
   return generateSlotGrid(input)
     .filter((s) => s.available)
-    .map(({ startMin, start, end, label }) => ({ startMin, start, end, label }));
+    .map(({ startMin, start, end, label, range }) => ({ startMin, start, end, label, range }));
 }
 
 export function workingHoursFor<T extends { weekday: number }>(date: string, rows: T[]) {

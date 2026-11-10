@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { FaqJsonLd } from "@/components/JsonLd";
 import { SITE } from "@/lib/site";
+import { FaqItem } from "@/components/content/FaqItem";
+
+const slug = (c: string) => c.toLowerCase().replace(/\W+/g, "-");
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -22,36 +24,30 @@ export default async function FaqPage() {
       <FaqJsonLd faqs={faqs} />
       <p className="eyebrow">FAQ</p>
       <h1 className="h1 mt-2">Frequently asked questions</h1>
-      <p className="mt-3 text-lg text-muted">Can&apos;t find your answer? Call or text {SITE.phoneDisplay} or <Link href="/contact" className="font-semibold text-brand-700 underline">send us a message</Link>.</p>
+      <p className="mt-3 text-lg text-muted">Can&apos;t find your answer? Call or text <a href={`tel:${SITE.phoneTel}`} className="link-underline whitespace-nowrap">{SITE.phoneDisplay}</a> or <Link href="/contact" className="link-underline">send us a message</Link>.</p>
 
       {groups.size > 1 && (
         <nav aria-label="FAQ categories" className="mt-6 flex flex-wrap gap-2">
           {[...groups.keys()].map((c) => (
-            <a key={c} href={`#${c.toLowerCase().replace(/\W+/g, "-")}`} className="badge bg-surface px-3 py-1.5 text-sm text-ink hover:bg-brand-50">{c}</a>
+            <a key={c} href={`#${slug(c)}`} className="chip">{c}</a>
           ))}
         </nav>
       )}
 
       {[...groups.entries()].map(([cat, items]) => (
-        <section key={cat} id={cat.toLowerCase().replace(/\W+/g, "-")} className="mt-10 scroll-mt-24">
-          <h2 className="text-xl font-bold">{cat}</h2>
+        <section key={cat} id={slug(cat)} aria-labelledby={`${slug(cat)}-h`} className="mt-10 scroll-mt-24">
+          <h2 id={`${slug(cat)}-h`} className="text-xl font-bold">{cat}</h2>
           <div className="mt-3 space-y-3">
             {items.map((f) => (
-              <details key={f.id} className="group card p-0 sm:p-0">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 font-semibold">
-                  {f.question}
-                  <ChevronDown className="size-5 shrink-0 transition group-open:rotate-180" aria-hidden />
-                </summary>
-                <p className="whitespace-pre-line px-5 pb-5 text-muted">{f.answer}</p>
-              </details>
+              <FaqItem key={f.id} question={f.question} answer={f.answer} />
             ))}
           </div>
         </section>
       ))}
 
-      <div className="mt-12 rounded-2xl bg-brand-50 p-6">
+      <div className="mt-12 rounded-3xl border border-brand-100 bg-brand-50 p-6 sm:p-8">
         <h2 className="text-lg font-bold">Still have a question?</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap">
           <Link href="/contact" className="btn-brand">Contact us</Link>
           <Link href="/book" className="btn-outline">Book a lesson</Link>
         </div>

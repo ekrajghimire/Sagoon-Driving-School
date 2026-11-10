@@ -2,7 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { SITE } from "./site";
 import { aud } from "./money";
-import { fmtDate, fmtTime, durationLabel } from "./time";
+import { fmtDate, fmtTime, durationLabel, todaySydney, addDays } from "./time";
 
 /**
  * Free email: any SMTP account works. Easiest is a Gmail / Google Workspace account with an
@@ -25,11 +25,12 @@ function tx() {
 
 type Mail = { to: string; subject: string; html: string; text: string; ics?: string };
 
-export async function sendEmail(m: Mail) {
-  if (!m.to?.trim()) return; // e.g. phone bookings without an email address
+/** Sends an email. Returns true if it was handed to the mail server (or logged, when SMTP isn't set up). */
+export async function sendEmail(m: Mail): Promise<boolean> {
+  if (!m.to?.trim()) return true; // e.g. phone bookings without an email address — nothing to send
   if (!configured()) {
     console.info(`[email:dev] → ${m.to} | ${m.subject}\n${m.text}\n`);
-    return;
+    return true;
   }
   try {
     await tx().sendMail({
@@ -41,8 +42,10 @@ export async function sendEmail(m: Mail) {
       text: m.text,
       icalEvent: m.ics ? { method: "PUBLISH", content: m.ics } : undefined,
     });
+    return true;
   } catch (e) {
     console.error("[email] send failed", e);
+    return false;
   }
 }
 
@@ -96,49 +99,92 @@ function details(b: MailBooking) {
   };
 }
 
+/** "today" / "tomorrow" / "on Wed 18 Nov", based on the Sydney calendar date. */
+function dayWord(d: Date) {
+  const day = todaySydney(d);
+  if (day === todaySydney()) return "today";
+  if (day === addDays(todaySydney(), 1)) return "tomorrow";
+  return `on ${fmtDate(d)}`;
+}
+
 const manageUrl = (b: MailBooking) => `${SITE.url}/booking/${b.manageToken}`;
 
-export function icsFor(b: MailBooking, uid: string) {
+/** Escape text for .ics files (RFC 5545): backslash, comma, semicolon and line breaks. */
+const icsText = (s: string) => s.replace(/\\/g, "\\\\").replace(/[,;]/g, (c) => `\\${c}`).replace(/\r?\n/g, "\\n");
+
+/** Calendar file with one event per lesson session (split lessons have several). */
+export function icsFor(input: MailBooking | MailBooking[]) {
+  const parts = Array.isArray(input) ? input : [input];
   const f = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const stamp = f(new Date());
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Sagoon Driving School//Booking//EN",
-    "BEGIN:VEVENT",
-    `UID:${uid}@sagoondrivingschool`,
-    `DTSTAMP:${f(new Date())}`,
-    `DTSTART:${f(b.startsAt)}`,
-    `DTEND:${f(b.endsAt)}`,
-    `SUMMARY:Driving lesson — ${SITE.name}`,
-    `LOCATION:${`${b.pickupAddress}, ${b.pickupSuburb} NSW`.replace(/[,;]/g, (c) => `\\${c}`)}`,
-    `DESCRIPTION:Booking ${b.ref}. Bring your learner licence. Manage: ${manageUrl(b)}`,
-    "END:VEVENT",
+    ...parts.flatMap((b) => [
+      "BEGIN:VEVENT",
+      `UID:${b.ref}@sagoondrivingschool`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${f(b.startsAt)}`,
+      `DTEND:${f(b.endsAt)}`,
+      `SUMMARY:Driving lesson — ${SITE.name}`,
+      `LOCATION:${icsText(`${b.pickupAddress}, ${b.pickupSuburb} NSW`)}`,
+      `DESCRIPTION:${icsText(`Booking ${b.ref}. Bring your learner licence. Manage: ${manageUrl(b)}`)}`,
+      "END:VEVENT",
+    ]),
     "END:VCALENDAR",
   ].join("\r\n");
 }
 
+/** Plain list of sessions for split lessons. */
+function sessionList(parts: MailBooking[]) {
+  const rows = parts.map((b, i) => `Session ${i + 1}: ${fmtDate(b.startsAt)}, ${fmtTime(b.startsAt)} – ${fmtTime(b.endsAt)}`);
+  return {
+    html: `<ul style="font-size:14px;padding-left:18px">${parts
+      .map((b, i) => `<li><strong>${esc(rows[i].replace(/^Session \d+: /, ""))}</strong> · <a href="${esc(manageUrl(b))}">manage</a></li>`)
+      .join("")}</ul>`,
+    text: rows.join("\n"),
+  };
+}
+
 export const emails = {
-  confirmation(b: MailBooking) {
+  confirmation(input: MailBooking | MailBooking[], windowHours = 24) {
+    const parts = Array.isArray(input) ? input : [input];
+    const b = parts[0];
+    const split = parts.length > 1;
     const d = details(b);
+    const list = sessionList(parts);
+    const total = parts.reduce((n, p) => n + p.priceCents - p.discountCents, 0);
     return {
       to: b.customerEmail,
-      subject: `Booked! ${fmtDate(b.startsAt)} at ${fmtTime(b.startsAt)} — ${SITE.name}`,
+      subject: split
+        ? `Booked! Your lesson in ${parts.length} sessions from ${fmtDate(b.startsAt)} — ${SITE.name}`
+        : `Booked! ${fmtDate(b.startsAt)} at ${fmtTime(b.startsAt)} — ${SITE.name}`,
       html: layout(
         `You're booked in, ${b.customerName.split(" ")[0]}!`,
-        `<p>Thanks for booking with us. Here are your lesson details:</p>${d.html}
+        split
+          ? `<p>Thanks for booking with us. Your lesson is split into ${parts.length} sessions:</p>${list.html}
+<p style="font-size:14px">Pickup: <strong>${esc(`${b.pickupAddress}, ${b.pickupSuburb}`)}</strong><br>Total: <strong>${b.paymentStatus === "CREDIT" ? "package credit" : `${aud(total)} incl. GST — pay on the day`}</strong></p>
+<p style="font-size:14px">Please bring your <strong>learner licence</strong> (or overseas licence) and wear comfortable, flat shoes.</p>
+<p style="font-size:12px;color:#55708a">Each session can be rescheduled or cancelled on its own, free, up to ${windowHours} hours before it starts.</p>`
+          : `<p>Thanks for booking with us. Here are your lesson details:</p>${d.html}
 <p style="font-size:14px">Please bring your <strong>learner licence</strong> (or overseas licence) and wear comfortable, flat shoes. Your instructor will meet you at the pickup address.</p>
 ${button(manageUrl(b), "View, reschedule or cancel")}
-<p style="font-size:12px;color:#55708a">Free cancellation or rescheduling up to 24 hours before your lesson.</p>`,
+<p style="font-size:12px;color:#55708a">Free cancellation or rescheduling up to ${windowHours} hours before your lesson.</p>`,
       ),
-      text: `You're booked in!\n\n${d.text}\n\nManage your booking: ${manageUrl(b)}`,
-      ics: icsFor(b, b.ref),
+      text: split
+        ? `You're booked in! Your lesson is split into ${parts.length} sessions:\n${list.text}\n\nManage: ${parts.map(manageUrl).join("\n")}`
+        : `You're booked in!\n\n${d.text}\n\nManage your booking: ${manageUrl(b)}`,
+      ics: icsFor(parts),
     };
   },
-  ownerNewBooking(b: MailBooking & { customerPhone: string }, to: string) {
-    const d = details(b);
+  ownerNewBooking(input: (MailBooking & { customerPhone: string }) | (MailBooking & { customerPhone: string })[], to: string) {
+    const parts = Array.isArray(input) ? input : [input];
+    const b = parts[0];
+    const d = parts.length > 1 ? sessionList(parts) : details(b);
     return {
       to,
-      subject: `New booking: ${b.customerName} — ${fmtDate(b.startsAt)} ${fmtTime(b.startsAt)}`,
+      subject: `New booking: ${b.customerName} — ${fmtDate(b.startsAt)} ${fmtTime(b.startsAt)}${parts.length > 1 ? ` (+${parts.length - 1} more)` : ""}`,
       html: layout("New booking", `${d.html}<p>Phone: <a href="tel:${esc(b.customerPhone)}">${esc(b.customerPhone)}</a></p>`),
       text: `New booking\n${d.text}\nPhone: ${b.customerPhone}`,
     };
@@ -147,9 +193,9 @@ ${button(manageUrl(b), "View, reschedule or cancel")}
     const d = details(b);
     return {
       to: b.customerEmail,
-      subject: `Reminder: driving lesson ${hoursBefore >= 24 ? "tomorrow" : "soon"} at ${fmtTime(b.startsAt)}`,
+      subject: `Reminder: driving lesson ${hoursBefore >= 24 ? dayWord(b.startsAt) : "soon"} at ${fmtTime(b.startsAt)}`,
       html: layout(
-        hoursBefore >= 24 ? "See you tomorrow!" : "Your lesson starts soon",
+        hoursBefore >= 24 ? `See you ${dayWord(b.startsAt)}!` : "Your lesson starts soon",
         `${d.html}<p style="font-size:14px">Remember your licence, glasses if you need them, and flat shoes. Feeling nervous? That's completely normal — we'll take it at your pace.</p>${button(manageUrl(b), "Manage booking")}`,
       ),
       text: `Reminder\n${d.text}\nManage: ${manageUrl(b)}`,
@@ -178,7 +224,7 @@ ${button(manageUrl(b), "View, reschedule or cancel")}
         `<p>Previously: ${fmtDate(oldStart)} at ${fmtTime(oldStart)}</p>${d.html}${button(manageUrl(b), "Manage booking")}`,
       ),
       text: `Your lesson has moved.\nPreviously: ${fmtDate(oldStart)} ${fmtTime(oldStart)}\n${d.text}`,
-      ics: icsFor(b, b.ref),
+      ics: icsFor(b),
     };
   },
   reviewRequest(b: MailBooking, reviewUrl: string) {

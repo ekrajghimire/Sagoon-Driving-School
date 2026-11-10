@@ -2,11 +2,12 @@
 import { useActionState, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, Car, Clock, MapPin, Ticket, Loader2 } from "lucide-react";
-import { DateSlotPicker, type SlotChoice } from "@/components/DateSlotPicker";
+import { DateSlotPicker, shortDate, longDate, type SlotChoice, type Pick } from "@/components/DateSlotPicker";
+import { splitParts, SPLIT_UNIT_MINS } from "@/lib/lesson-parts";
 import { createBookingAction, checkPromo } from "./actions";
 import { joinWaitlist, type FormState } from "@/app/actions/public";
 
-type LessonOpt = { id: string; slug: string; name: string; description: string; durationMins: number; priceCents: number; popular: boolean };
+type LessonOpt = { id: string; slug: string; name: string; description: string; durationMins: number; priceCents: number; popular: boolean; kind: string };
 
 const aud = (c: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(c / 100);
 const dur = (m: number) => (m % 60 === 0 ? `${m / 60} hr${m > 60 ? "s" : ""}` : `${(m / 60).toFixed(1)} hrs`);
@@ -19,6 +20,7 @@ export function BookingWizard(props: {
   suburbs: string[];
   addresses: { id: string; address: string; suburb: string }[];
   maxAdvanceDays: number;
+  bufferMins: number;
   initialLessonSlug?: string;
   initialDate?: string;
   cancellationHours: number;
@@ -26,7 +28,8 @@ export function BookingWizard(props: {
   const initialLesson = props.lessonTypes.find((l) => l.slug === props.initialLessonSlug);
   const [step, setStep] = useState(initialLesson ? 1 : 0);
   const [lessonId, setLessonId] = useState<string | "credit" | null>(initialLesson?.id ?? null);
-  const [slot, setSlot] = useState<SlotChoice>(null);
+  const [slot, setSlot] = useState<SlotChoice>(null); // one continuous lesson
+  const [picks, setPicks] = useState<Pick[]>([]); // split lesson: one pick per hour
   const [noSlotsDate, setNoSlotsDate] = useState<string | null>(null);
   const [form, setForm] = useState({
     customerName: props.user?.name ?? "",
@@ -46,6 +49,18 @@ export function BookingWizard(props: {
 
   const lesson = props.lessonTypes.find((l) => l.id === lessonId);
   const durationMins = lessonId === "credit" ? props.credit?.durationMins ?? 60 : lesson?.durationMins ?? 60;
+  // A 2-hour (or longer whole-hour) standard lesson can be booked as separate 1-hour sessions.
+  const parts = lesson && lessonId !== "credit" ? splitParts(lesson.kind, lesson.durationMins) : 1;
+  const split = parts > 1;
+  const times: Pick[] = split ? picks : slot ? [slot] : [];
+  const timesReady = split ? picks.length === parts : Boolean(slot);
+  const selectLesson = (id: string) => {
+    if (id !== lessonId) {
+      setSlot(null);
+      setPicks([]);
+    }
+    setLessonId(id);
+  };
   const price = lessonId === "credit" ? 0 : lesson?.priceCents ?? 0;
   const discount = useMemo(() => {
     if (!promo?.ok || !price) return 0;
@@ -69,8 +84,9 @@ export function BookingWizard(props: {
       const res = await createBookingAction({
         ...form,
         promoCode: promo?.ok ? form.promoCode : null,
-        date: slot!.date,
-        startMin: slot!.startMin,
+        date: times[0].date,
+        startMin: times[0].startMin,
+        slots: split ? picks.map((p) => ({ date: p.date, startMin: p.startMin })) : undefined,
         lessonTypeId: lessonId === "credit" ? null : lessonId,
         usePackageCredit: lessonId === "credit",
       });
@@ -79,6 +95,7 @@ export function BookingWizard(props: {
         setError(res.error);
         if (res.code === "SLOT_TAKEN") {
           setSlot(null);
+          setPicks([]);
           setStep(1);
         }
       }
@@ -112,7 +129,7 @@ export function BookingWizard(props: {
               {props.credit && props.credit.remaining > 0 && (
                 <LessonCard
                   checked={lessonId === "credit"}
-                  onSelect={() => setLessonId("credit")}
+                  onSelect={() => selectLesson("credit")}
                   title={`Use a package lesson (${props.credit.remaining} left)`}
                   desc={`${props.credit.name} · ${dur(props.credit.durationMins)}`}
                   price="Prepaid"
@@ -120,7 +137,16 @@ export function BookingWizard(props: {
                 />
               )}
               {props.lessonTypes.map((l) => (
-                <LessonCard key={l.id} checked={lessonId === l.id} onSelect={() => setLessonId(l.id)} title={l.name} desc={`${dur(l.durationMins)} · ${l.description}`} price={aud(l.priceCents)} badge={l.popular ? "Most popular" : undefined} />
+                <LessonCard
+                  key={l.id}
+                  checked={lessonId === l.id}
+                  onSelect={() => selectLesson(l.id)}
+                  title={l.name}
+                  desc={`${dur(l.durationMins)} · ${l.description}`}
+                  note={splitParts(l.kind, l.durationMins) > 1 ? `Book it in one go, or split it into ${splitParts(l.kind, l.durationMins)} one-hour sessions on the days that suit you.` : undefined}
+                  price={aud(l.priceCents)}
+                  badge={l.popular ? "Most popular" : undefined}
+                />
               ))}
             </div>
             <p className="mt-4 text-sm text-muted">
@@ -134,12 +160,27 @@ export function BookingWizard(props: {
 
         {step === 1 && (
           <section aria-labelledby="s1">
-            <h2 id="s1" className="mb-4 text-xl font-bold">Choose a date and start time</h2>
-            <DateSlotPicker durationMins={durationMins} value={slot} onChange={setSlot} maxAdvanceDays={props.maxAdvanceDays} initialDate={props.initialDate} onNoSlots={setNoSlotsDate} />
-            {noSlotsDate && !slot && <Waitlist date={noSlotsDate} user={props.user} />}
+            <h2 id="s1" className="mb-4 text-xl font-bold">{split ? `Choose your ${parts} one-hour times` : "Choose a date and time"}</h2>
+            {split ? (
+              <DateSlotPicker
+                durationMins={SPLIT_UNIT_MINS}
+                picks={picks}
+                onPicksChange={setPicks}
+                maxPicks={parts}
+                bufferMins={props.bufferMins}
+                maxAdvanceDays={props.maxAdvanceDays}
+                initialDate={props.initialDate}
+                onNoSlots={setNoSlotsDate}
+              />
+            ) : (
+              <DateSlotPicker durationMins={durationMins} value={slot} onChange={setSlot} maxAdvanceDays={props.maxAdvanceDays} initialDate={props.initialDate} onNoSlots={setNoSlotsDate} />
+            )}
+            {noSlotsDate && !timesReady && <Waitlist date={noSlotsDate} user={props.user} />}
             <div className="mt-6 flex justify-between">
               <button className="btn-outline" onClick={() => setStep(0)}>Back</button>
-              <button className="btn-primary" disabled={!slot} onClick={() => setStep(2)}>Continue</button>
+              <button className="btn-primary" disabled={!timesReady} onClick={() => setStep(2)}>
+                {split && !timesReady ? `Pick ${parts - picks.length} more time${parts - picks.length === 1 ? "" : "s"}` : "Continue"}
+              </button>
             </div>
           </section>
         )}
@@ -203,12 +244,12 @@ export function BookingWizard(props: {
           </section>
         )}
 
-        {step === 3 && slot && (
+        {step === 3 && timesReady && (
           <section aria-labelledby="s3">
             <h2 id="s3" className="text-xl font-bold">Check and confirm</h2>
             <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
               <Row k="Lesson" v={`${lessonId === "credit" ? `${props.credit?.name} lesson` : lesson?.name} (${dur(durationMins)}, automatic)`} />
-              <Row k="When" v={`${new Date(`${slot.date}T12:00:00Z`).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })} at ${slot.label}`} />
+              <Row k={split ? "Sessions" : "When"} v={times.map((t) => `${longDate(t.date)}, ${t.label}`).join("\n")} />
               <Row k="Pickup" v={`${form.pickupAddress}, ${form.pickupSuburb}`} />
               <Row k="Name" v={form.customerName} />
               <Row k="Contact" v={`${form.customerPhone} · ${form.customerEmail}`} />
@@ -237,7 +278,19 @@ export function BookingWizard(props: {
       <aside className="card h-fit space-y-3 lg:sticky lg:top-24" aria-label="Booking summary">
         <h2 className="font-bold">Summary</h2>
         <p className="flex items-start gap-2 text-sm"><Car className="mt-0.5 size-4 text-brand-600" /> {lessonId === "credit" ? `${props.credit?.name} lesson` : lesson?.name ?? "Choose a lesson"} · Automatic</p>
-        <p className="flex items-start gap-2 text-sm"><Clock className="mt-0.5 size-4 text-brand-600" /> {slot ? `${slot.date.split("-").reverse().join("/")} at ${slot.label} · ${dur(durationMins)}` : "Choose a time"}</p>
+        <div className="flex items-start gap-2 text-sm">
+          <Clock className="mt-0.5 size-4 shrink-0 text-brand-600" />
+          {times.length ? (
+            <ul className="space-y-0.5">
+              {times.map((t) => (
+                <li key={`${t.date}-${t.startMin}`}>{shortDate(t.date)} · {t.label}</li>
+              ))}
+              {split && picks.length < parts && <li className="text-muted">+ {parts - picks.length} more to pick</li>}
+            </ul>
+          ) : (
+            <span>{split ? `Choose ${parts} one-hour times` : "Choose a time"}</span>
+          )}
+        </div>
         <p className="flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 text-brand-600" /> {form.pickupSuburb || "Free pickup & drop-off"}</p>
         {discount > 0 && <p className="flex items-start gap-2 text-sm text-ok"><Ticket className="mt-0.5 size-4" /> −{aud(discount)}</p>}
         <div className="border-t border-line pt-3">
@@ -249,15 +302,27 @@ export function BookingWizard(props: {
   );
 }
 
-function LessonCard({ checked, onSelect, title, desc, price, badge }: { checked: boolean; onSelect: () => void; title: string; desc: string; price: string; badge?: string }) {
+function LessonCard({ checked, onSelect, title, desc, price, badge, note }: { checked: boolean; onSelect: () => void; title: string; desc: string; price: string; badge?: string; note?: string }) {
   return (
-    <button type="button" role="radio" aria-checked={checked} onClick={onSelect} className={`flex w-full items-start justify-between gap-4 rounded-xl border p-4 text-left transition ${checked ? "border-brand-700 bg-brand-50 ring-2 ring-brand-200" : "border-line hover:border-brand-500"}`}>
-      <span>
-        <span className="flex flex-wrap items-center gap-2 font-bold">
-          {title}
-          {badge && <span className="badge bg-accent text-ink">{badge}</span>}
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      onClick={onSelect}
+      className={`flex w-full items-start justify-between gap-4 rounded-xl border p-4 text-left transition duration-150 ${checked ? "border-brand-700 bg-brand-50 ring-2 ring-brand-200" : "border-line bg-white hover:-translate-y-0.5 hover:border-brand-500 hover:shadow-md active:translate-y-0"}`}
+    >
+      <span className="flex items-start gap-3">
+        <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 transition ${checked ? "border-brand-700 bg-brand-700" : "border-slate-300"}`}>
+          {checked && <Check className="size-3 text-white" />}
         </span>
-        <span className="mt-1 block text-sm text-muted">{desc}</span>
+        <span>
+          <span className="flex flex-wrap items-center gap-2 font-bold">
+            {title}
+            {badge && <span className="badge bg-accent text-ink">{badge}</span>}
+          </span>
+          <span className="mt-1 block text-sm text-muted">{desc}</span>
+          {note && <span className="mt-1.5 block text-sm font-semibold text-brand-700">✂ {note}</span>}
+        </span>
       </span>
       <span className="shrink-0 text-lg font-extrabold">{price}</span>
     </button>
@@ -278,7 +343,7 @@ function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="grid grid-cols-3 gap-2 px-4 py-3">
       <dt className="text-muted">{k}</dt>
-      <dd className="col-span-2 font-semibold">{v}</dd>
+      <dd className="col-span-2 whitespace-pre-line font-semibold">{v}</dd>
     </div>
   );
 }

@@ -19,7 +19,7 @@ function Bar({ value, max, label }: { value: number; max: number; label: string 
   return (
     <div className="flex items-center gap-2">
       <div className="h-3 flex-1 rounded-full bg-surface" aria-hidden>
-        <div className="h-3 rounded-full bg-brand-500" style={{ width: `${max ? Math.max(2, (value / max) * 100) : 0}%` }} />
+        <div className="h-3 rounded-full bg-brand-500" style={{ width: `${max && value > 0 ? Math.max(2, Math.min(100, (value / max) * 100)) : 0}%` }} />
       </div>
       <span className="w-24 shrink-0 text-right text-xs font-semibold">{label}</span>
     </div>
@@ -112,16 +112,29 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Reports" subtitle={`${fmtDate(start)} – ${fmtDate(sydneyDayRange(to).start)}`} />
-      <form method="get" className="card mb-4 grid gap-3 p-4 sm:grid-cols-4">
+      <nav aria-label="Report presets" className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        {presets.map(([l, f, t]) => {
+          const g = l.includes("12") ? "month" : group;
+          const on = from === f && to === t;
+          return (
+            <Link
+              key={l}
+              href={`?from=${f}&to=${t}&group=${g}`}
+              aria-current={on ? "page" : undefined}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-line px-4 text-sm font-semibold transition hover:border-brand-500 aria-[current=page]:border-brand-700 aria-[current=page]:bg-brand-700 aria-[current=page]:text-white sm:min-h-9"
+            >
+              {l}
+            </Link>
+          );
+        })}
+      </nav>
+      <form method="get" className="card mb-4 grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
         <label className="label">From<input type="date" name="from" defaultValue={from} className="input mt-1" /></label>
         <label className="label">To<input type="date" name="to" defaultValue={to} className="input mt-1" /></label>
         <label className="label">Group by
           <select name="group" defaultValue={group} className="input mt-1"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select>
         </label>
-        <div className="flex items-end"><button className="btn-brand">Update</button></div>
-        <div className="flex flex-wrap gap-2 sm:col-span-4">
-          {presets.map(([l, f, t]) => <Link key={l} className="btn-ghost btn-sm" href={`?from=${f}&to=${t}&group=${l.includes("12") ? "month" : group}`}>{l}</Link>)}
-        </div>
+        <div className="flex items-end"><button className="btn-brand w-full sm:w-auto">Update</button></div>
       </form>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -140,7 +153,28 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
       <section className="card mt-4" aria-labelledby="per-h">
         <h2 id="per-h" className="font-bold">By {group}</h2>
-        <div className="mt-3 overflow-x-auto">
+        {/* Phone: one compact row per period */}
+        <ul className="mt-3 divide-y divide-line md:hidden">
+          {keys.map((k) => {
+            const r = rows.get(k)!;
+            return (
+              <li key={k} className="py-2.5">
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-semibold">{label(k)}</span>
+                  <span className="font-bold tabular-nums">{aud(r.revenue, { round: true })}</span>
+                </div>
+                <Bar value={r.revenue} max={maxRevenue} label={`${r.bookings} lesson${r.bookings === 1 ? "" : "s"}`} />
+                {(r.cancelled > 0 || r.noShow > 0 || r.minutesTaught > 0) && (
+                  <p className="mt-0.5 text-xs text-muted">
+                    {(r.minutesTaught / 60).toFixed(1)} hrs taught{r.cancelled ? ` · ${r.cancelled} cancelled` : ""}
+                    {r.noShow ? ` · ${r.noShow} no-show` : ""}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <div className="mt-3 hidden overflow-x-auto md:block">
           <table className="table-x min-w-[640px]">
             <caption className="sr-only">Revenue and bookings by {group}</caption>
             <thead><tr><th scope="col">Period</th><th scope="col" className="w-1/3">Revenue</th><th scope="col">GST</th><th scope="col">Lessons</th><th scope="col">Hours taught</th><th scope="col">Cancelled</th><th scope="col">No-show</th></tr></thead>

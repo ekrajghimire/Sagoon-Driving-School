@@ -107,7 +107,7 @@ model Settings {
   gstRegistered           Boolean  @default(true)
   suburbs                 String[]
   allowedDurations        Int[]    @default([60, 90, 120])
-  slotIntervalMins        Int      @default(30)
+  slotIntervalMins        Int      @default(60)
   travelBufferMins        Int      @default(15)
   minNoticeHours          Int      @default(12)
   maxAdvanceDays          Int      @default(60)
@@ -291,6 +291,7 @@ model Booking {
   id                  String           @id @default(cuid())
   ref                 String           @unique // short human code, e.g. SDS-7K2Q9
   manageToken         String           @unique // lets guests manage via emailed link
+  groupRef            String? // set when one lesson is split into several sessions (e.g. 2 × 1 hour)
   userId              String?
   user                User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName        String
@@ -334,6 +335,7 @@ model Booking {
   @@index([startsAt, endsAt])
   @@index([status, startsAt])
   @@index([userId])
+  @@index([groupRef])
 }
 
 model SkillRating {

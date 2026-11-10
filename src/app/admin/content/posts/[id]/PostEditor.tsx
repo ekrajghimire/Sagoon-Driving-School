@@ -23,25 +23,25 @@ export function PostEditor({ post, categories }: { post: Post | null; categories
         {post && <input type="hidden" name="id" value={post.id} />}
         <div className="card grid gap-3 sm:grid-cols-4">
           <label className="label sm:col-span-4">Title
-            <input name="title" required value={title} onChange={(e) => { setTitle(e.target.value); if (!slugTouched) setSlug(slugify(e.target.value)); }} className="input mt-1" />
+            <input name="title" required minLength={3} maxLength={150} value={title} onChange={(e) => { setTitle(e.target.value); if (!slugTouched) setSlug(slugify(e.target.value)); }} className="input mt-1" />
           </label>
           <label className="label sm:col-span-2">URL slug
-            <input name="slug" value={slug} onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }} className="input mt-1" />
+            <input name="slug" maxLength={80} value={slug} onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }} className="input mt-1" />
             <span className="help block font-normal">/resources/{slugify(slug || title) || "…"}</span>
           </label>
           <label className="label">Category
-            <input name="category" required list="post-cats" defaultValue={post?.category ?? "Getting started"} className="input mt-1" />
+            <input name="category" required minLength={2} maxLength={50} list="post-cats" defaultValue={post?.category ?? "Getting started"} className="input mt-1" />
             <datalist id="post-cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
           </label>
           <label className="label">Read time (min)<input name="readMins" type="number" min={1} max={60} defaultValue={post?.readMins ?? 4} className="input mt-1" /></label>
-          <label className="label sm:col-span-4">Excerpt (shown in lists & Google)<textarea name="excerpt" rows={2} required defaultValue={post?.excerpt} className="input mt-1" /></label>
+          <label className="label sm:col-span-4">Excerpt (shown in lists & Google)<textarea name="excerpt" rows={2} required minLength={10} maxLength={300} defaultValue={post?.excerpt} className="input mt-1" /></label>
         </div>
 
         <div className="card">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="inline-flex rounded-xl border border-line p-0.5 lg:hidden" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")} className="rounded-lg px-3 py-1.5 text-sm font-semibold aria-selected:bg-brand-700 aria-selected:text-white">Write</button>
-              <button type="button" role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")} className="rounded-lg px-3 py-1.5 text-sm font-semibold aria-selected:bg-brand-700 aria-selected:text-white">Preview</button>
+              <button type="button" role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")} className="min-h-10 rounded-lg px-4 text-sm font-semibold aria-selected:bg-brand-700 aria-selected:text-white">Write</button>
+              <button type="button" role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")} className="min-h-10 rounded-lg px-4 text-sm font-semibold aria-selected:bg-brand-700 aria-selected:text-white">Preview</button>
             </div>
             <p className="text-xs text-muted">Markdown: ## heading, **bold**, *italic*, - list, 1. list, [link](https://…), &gt; note</p>
           </div>
@@ -57,8 +57,8 @@ export function PostEditor({ post, categories }: { post: Post | null; categories
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={post?.published ?? true} /> Published</label>
+        <div className="sticky bottom-16 z-20 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border lg:bottom-4">
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={post?.published ?? true} className="size-5" /> Published</label>
           <SubmitButton className="btn-brand">{post ? "Save post" : "Create post"}</SubmitButton>
           {post?.published && <a href={`/resources/${post.slug}`} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm">View live ↗</a>}
         </div>
@@ -66,7 +66,7 @@ export function PostEditor({ post, categories }: { post: Post | null; categories
       {post && (
         <ActionForm action={deletePost} className="mt-6 border-t border-line pt-4">
           <input type="hidden" name="id" value={post.id} />
-          <SubmitButton className="btn-danger btn-sm" confirm="Permanently delete this post?">Delete post</SubmitButton>
+          <SubmitButton className="btn-danger btn-sm" confirm={`Permanently delete “${post.title}”? This can't be undone.`}>Delete post</SubmitButton>
         </ActionForm>
       )}
     </>

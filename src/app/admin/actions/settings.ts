@@ -22,11 +22,18 @@ export async function saveBusiness(_: ActionState, fd: FormData): Promise<Action
         phone: z.string().trim().min(8).max(30),
         email: z.email(),
         address: z.string().trim().min(2).max(200),
-        abn: z.string().trim().regex(/^[\d ]{11,14}$/, "ABN should be 11 digits"),
+        abn: z
+          .string()
+          .trim()
+          .refine((v) => /^\d{11}$/.test(v.replace(/\s/g, "")), "ABN should be 11 digits"),
         paymentInstructions: z.string().trim().max(500),
         payId: z.string().trim().max(100),
         googleReviewsUrl: optUrl,
-        whatsappNumber: z.string().trim().regex(/^\d{8,15}$/, "WhatsApp number: digits only, with country code e.g. 61451634722"),
+        whatsappNumber: z
+          .string()
+          .trim()
+          .transform((v) => v.replace(/[\s()+-]/g, "").replace(/^0(?=4)/, "61")) // "+61 451 634 722" or "0451…" → "61451634722"
+          .pipe(z.string().regex(/^\d{8,15}$/, "WhatsApp number: digits with country code, e.g. 61451634722")),
         statPassRate: z.string().trim().max(20),
         statStudents: z.string().trim().max(20),
         announcement: z.string().trim().max(200),

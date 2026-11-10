@@ -19,28 +19,28 @@ const base = (over: Partial<AvailabilityInput> = {}): AvailabilityInput => ({
 describe("availability engine", () => {
   it("offers every half hour inside working hours", () => {
     const slots = generateSlots(base());
-    expect(slots[0].label).toBe("7:00am");
-    expect(slots.at(-1)!.label).toBe("6:00pm"); // last 1-hour lesson ends at 7pm
+    expect(slots[0].label).toBe("7:00 AM");
+    expect(slots.at(-1)!.label).toBe("6:00 PM"); // last 1-hour lesson ends at 7pm
     expect(slots).toHaveLength(23);
   });
 
   it("never offers a time overlapping an existing booking plus travel buffer", () => {
     const busy = [{ start: sydneyToUtc("2026-11-16", 600), end: sydneyToUtc("2026-11-16", 660), source: "booking" as const }]; // 10–11am
     const labels = generateSlots(base({ busy })).map((s) => s.label);
-    expect(labels).not.toContain("9:00am"); // would end 10:00, inside 15-min buffer
-    expect(labels).not.toContain("10:00am");
-    expect(labels).not.toContain("10:30am");
-    expect(labels).not.toContain("11:00am"); // starts inside buffer after
-    expect(labels).toContain("8:30am"); // ends 9:30, clear of 9:45 buffer
-    expect(labels).toContain("11:30am");
+    expect(labels).not.toContain("9:00 AM"); // would end 10:00, inside 15-min buffer
+    expect(labels).not.toContain("10:00 AM");
+    expect(labels).not.toContain("10:30 AM");
+    expect(labels).not.toContain("11:00 AM"); // starts inside buffer after
+    expect(labels).toContain("8:30 AM"); // ends 9:30, clear of 9:45 buffer
+    expect(labels).toContain("11:30 AM");
   });
 
   it("blocks Google Calendar events", () => {
     const busy = [{ start: sydneyToUtc("2026-11-16", 13 * 60), end: sydneyToUtc("2026-11-16", 15 * 60), source: "google" as const }];
     const labels = generateSlots(base({ busy })).map((s) => s.label);
-    expect(labels).not.toContain("1:00pm");
-    expect(labels).not.toContain("2:30pm");
-    expect(labels).toContain("11:30am");
+    expect(labels).not.toContain("1:00 PM");
+    expect(labels).not.toContain("2:30 PM");
+    expect(labels).toContain("11:30 AM");
   });
 
   it("returns nothing on public holidays and past/too-far dates", () => {
@@ -52,7 +52,7 @@ describe("availability engine", () => {
   it("respects minimum notice", () => {
     // now = Mon 16 Nov 6:00am Sydney (AEDT, UTC+11) → earliest 6:00pm
     const slots = generateSlots(base({ now: new Date("2026-11-15T19:00:00Z") }));
-    expect(slots.map((s) => s.label)).toEqual(["6:00pm"]);
+    expect(slots.map((s) => s.label)).toEqual(["6:00 PM"]);
   });
 
   it("handles daylight saving start (5 Oct 2025) — 9am is 9am local", () => {
@@ -69,8 +69,8 @@ describe("availability engine", () => {
   });
 
   it("supports 1.5 and 2 hour lessons", () => {
-    expect(generateSlots(base({ durationMins: 120 })).at(-1)!.label).toBe("5:00pm");
-    expect(generateSlots(base({ durationMins: 90 })).at(-1)!.label).toBe("5:30pm");
+    expect(generateSlots(base({ durationMins: 120 })).at(-1)!.label).toBe("5:00 PM");
+    expect(generateSlots(base({ durationMins: 90 })).at(-1)!.label).toBe("5:30 PM");
   });
 });
 
@@ -81,11 +81,51 @@ describe("slot grid (dimmed times)", () => {
     const grid = generateSlotGrid(base({ busy, now: new Date("2026-11-15T19:00:00Z"), minNoticeHours: 2 })); // now = 6am Sydney
     expect(grid).toHaveLength(23); // every half hour 7:00–18:00 still listed
     const byLabel = Object.fromEntries(grid.map((g) => [g.label, g]));
-    expect(byLabel["7:30am"]).toMatchObject({ available: false, reason: "too_soon" });
-    expect(byLabel["10:00am"]).toMatchObject({ available: false, reason: "booked" });
-    expect(byLabel["11:30am"]).toMatchObject({ available: true });
+    expect(byLabel["7:30 AM"]).toMatchObject({ available: false, reason: "too_soon" });
+    expect(byLabel["10:00 AM"]).toMatchObject({ available: false, reason: "booked" });
+    expect(byLabel["11:30 AM"]).toMatchObject({ available: true });
   });
   it("is empty on closed days", () => {
     expect(generateSlotGrid(base({ isHoliday: true }))).toHaveLength(0);
+  });
+});
+
+import { mergeIntoBlocks, splitParts } from "../src/lib/lesson-parts";
+describe("split lessons", () => {
+  it("only whole-hour standard lessons of 2h+ can be split", () => {
+    expect(splitParts("LESSON", 120)).toBe(2);
+    expect(splitParts("LESSON", 90)).toBe(1);
+    expect(splitParts("LESSON", 60)).toBe(1);
+    expect(splitParts("TEST_PACKAGE", 120)).toBe(1);
+  });
+  it("merges back-to-back picks and keeps separate days apart", () => {
+    expect(mergeIntoBlocks([{ date: "2026-11-18", startMin: 540 }, { date: "2026-11-18", startMin: 480 }], 60)).toEqual([{ date: "2026-11-18", startMin: 480, durationMins: 120 }]);
+    expect(mergeIntoBlocks([{ date: "2026-11-19", startMin: 480 }, { date: "2026-11-18", startMin: 480 }], 60)).toEqual([
+      { date: "2026-11-18", startMin: 480, durationMins: 60 },
+      { date: "2026-11-19", startMin: 480, durationMins: 60 },
+    ]);
+    expect(mergeIntoBlocks([{ date: "2026-11-18", startMin: 480 }, { date: "2026-11-18", startMin: 510 }], 60)).toBeNull();
+  });
+});
+
+import { isIsoDate } from "../src/lib/time";
+describe("date validation", () => {
+  it("rejects impossible dates", () => {
+    expect(isIsoDate("2026-11-18")).toBe(true);
+    expect(isIsoDate("2028-02-29")).toBe(true);
+    expect(isIsoDate("2026-02-31")).toBe(false);
+    expect(isIsoDate("2026-13-01")).toBe(false);
+    expect(isIsoDate("18/11/2026")).toBe(false);
+  });
+});
+
+import { safeNext } from "../src/lib/safe-next";
+describe("login redirect safety", () => {
+  it("keeps on-site paths and rejects other sites", () => {
+    expect(safeNext("/account/packages?buy=pack-10")).toBe("/account/packages?buy=pack-10");
+    expect(safeNext("/admin")).toBe("/admin");
+    for (const bad of ["//evil.com", "/\\evil.com", "https://evil.com", "/\\/evil.com", "javascript:alert(1)", "/%0a/evil", ""]) {
+      expect(["/account", "/%0a/evil"]).toContain(safeNext(bad));
+    }
   });
 });

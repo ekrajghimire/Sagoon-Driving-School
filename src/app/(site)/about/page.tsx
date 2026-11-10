@@ -39,9 +39,9 @@ export default async function AboutPage() {
           {/* Replace with a real photo: public/images/instructor.jpg (or set photoUrl in the database) */}
           {ins.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={ins.photoUrl} alt={`${ins.name}, driving instructor`} className="aspect-[4/5] w-full rounded-3xl object-cover" />
+            <img src={ins.photoUrl} alt={`${ins.name}, driving instructor`} className="mx-auto aspect-[4/5] w-full max-w-sm rounded-3xl object-cover shadow-md lg:max-w-none" />
           ) : (
-            <div className="grid aspect-[4/5] w-full place-items-center rounded-3xl bg-gradient-to-br from-brand-100 to-brand-50" aria-hidden>
+            <div className="mx-auto grid aspect-[4/5] w-full max-w-sm place-items-center rounded-3xl bg-gradient-to-br from-brand-100 to-brand-50 lg:max-w-none" aria-hidden>
               <User className="size-28 text-brand-200" />
             </div>
           )}
@@ -69,7 +69,7 @@ export default async function AboutPage() {
                 <p className="text-lg font-bold">{v.name}</p>
                 <p className="text-sm text-muted">{v.transmission} transmission</p>
                 <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {v.features.map((f) => <li key={f} className="flex gap-2 text-sm"><Check className="size-4 shrink-0 text-ok" aria-hidden /> {f}</li>)}
+                  {v.features.map((f) => <li key={f} className="flex gap-2 text-sm"><Check className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden /> {f}</li>)}
                 </ul>
               </div>
             ))}
@@ -78,7 +78,7 @@ export default async function AboutPage() {
           {/* Replace with a real car photo: public/images/car.jpg */}
           {vehicles[0]?.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={vehicles[0].photoUrl} alt={vehicles[0].name} className="aspect-video w-full rounded-3xl object-cover" />
+            <img src={vehicles[0].photoUrl} alt={vehicles[0].name} className="aspect-video w-full rounded-3xl object-cover shadow-md" />
           ) : (
             <div className="grid aspect-video w-full place-items-center rounded-3xl bg-gradient-to-br from-brand-700 to-brand-500" aria-hidden>
               <Car className="size-24 text-white/60" />
@@ -89,16 +89,16 @@ export default async function AboutPage() {
 
       <section className="container-x py-12" aria-labelledby="values">
         <h2 id="values" className="h2">How we teach</h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
           {VALUES.map((v) => (
             <div key={v.title} className="card">
-              <v.icon className="size-8 text-brand-600" aria-hidden />
-              <h3 className="mt-3 text-lg font-bold">{v.title}</h3>
+              <span className="icon-tile"><v.icon className="size-6" aria-hidden /></span>
+              <h3 className="mt-4 text-lg font-bold">{v.title}</h3>
               <p className="mt-1 text-sm text-muted">{v.text}</p>
             </div>
           ))}
         </div>
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div className="mt-10 flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap">
           <Link href="/book" className="btn-primary">Book a lesson</Link>
           <Link href="/reviews" className="btn-outline">Read reviews</Link>
         </div>

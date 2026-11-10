@@ -34,7 +34,11 @@ export const STAFF_ROLES = ["OWNER", "STAFF", "INSTRUCTOR"] as const;
 
 export async function requireStaff(roles: readonly string[] = STAFF_ROLES) {
   const user = await requireUser("/admin");
-  if (!roles.includes(user.role)) redirect("/account");
+  if (!roles.includes(user.role)) {
+    // The owner's own email, not yet confirmed as owner → send them to claim access.
+    const owners = (process.env.OWNER_EMAIL ?? "").split(",").map((e) => e.trim().toLowerCase());
+    redirect(owners.includes(user.email.toLowerCase()) ? "/owner-setup" : "/account");
+  }
   return user;
 }
 

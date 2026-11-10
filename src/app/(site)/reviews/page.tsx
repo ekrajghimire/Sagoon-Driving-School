@@ -25,14 +25,15 @@ export default async function ReviewsPage() {
         <p className="eyebrow">Reviews</p>
         <h1 className="h1 mt-2">What our students say</h1>
         <p className="mt-3 text-lg text-muted">Real feedback from learners we&apos;ve taught. Read more — or leave your own — on Google.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="btn-brand"><Star className="size-4" aria-hidden /> Google reviews</a>
+        <div className="mt-6 flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap">
+          <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="btn-brand"><Star className="size-4" aria-hidden /> Google reviews<span className="sr-only"> (opens in a new tab)</span></a>
           <Link href="/book" className="btn-outline">Book a lesson</Link>
         </div>
       </div>
 
       {avg != null && (
-        <p className="mt-8 text-sm text-muted">
+        <p className="mt-8 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-line bg-surface px-4 py-2 text-sm text-muted">
+          <Star className="size-4 fill-current text-accent-600" aria-hidden />
           Average rating on this page: <strong className="text-ink">{avg.toFixed(1)} / 5</strong> from {reviews.length} review{reviews.length === 1 ? "" : "s"}.
         </p>
       )}
@@ -41,11 +42,11 @@ export default async function ReviewsPage() {
         <div className="mt-6 columns-1 gap-4 md:columns-2 lg:columns-3">
           {reviews.map((t) => (
             <figure key={t.id} className="card mb-4 break-inside-avoid">
-              <div className="flex gap-0.5 text-accent-600" aria-label={`${t.rating} out of 5 stars`}>
+              <div className="flex gap-0.5 text-accent-600" role="img" aria-label={`${t.rating} out of 5 stars`}>
                 {Array.from({ length: t.rating }).map((_, i) => <Star key={i} className="size-4 fill-current" aria-hidden />)}
               </div>
-              <blockquote className="mt-3">&ldquo;{t.quote}&rdquo;</blockquote>
-              <figcaption className="mt-3 text-sm font-semibold">{t.name} <span className="font-normal text-muted">· {t.suburb}</span></figcaption>
+              <blockquote className="mt-3 leading-relaxed">&ldquo;{t.quote}&rdquo;</blockquote>
+              <figcaption className="mt-4 border-t border-line pt-3 text-sm font-semibold">{t.name} <span className="font-normal text-muted">· {t.suburb}</span></figcaption>
             </figure>
           ))}
         </div>
@@ -56,10 +57,10 @@ export default async function ReviewsPage() {
         </div>
       )}
 
-      <div className="mt-12 rounded-2xl bg-brand-50 p-6 sm:p-8">
+      <div className="mt-12 rounded-3xl border border-brand-100 bg-brand-50 p-6 sm:p-8">
         <h2 className="text-xl font-bold">Had a lesson with us?</h2>
         <p className="mt-1 text-muted">We&apos;d love to hear how it went. Your review helps other nervous learners find a patient instructor — thank you!</p>
-        <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="btn-primary mt-4">Leave a Google review</a>
+        <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="btn-primary mt-4">Leave a Google review<span className="sr-only"> (opens in a new tab)</span></a>
       </div>
     </div>
   );

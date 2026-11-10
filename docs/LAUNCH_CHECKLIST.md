@@ -6,7 +6,8 @@ Tick each item before telling customers about the site.
 - [ ] Neon database created (Sydney region); `DATABASE_URL` + `DIRECT_URL` set on host
 - [ ] `BETTER_AUTH_SECRET` set to a new random value (`openssl rand -base64 32`)
 - [ ] Live site address correct: confirmation email links open your real domain, not `localhost` (automatic on Vercel; optionally pin it with `NEXT_PUBLIC_SITE_URL`)
-- [ ] `OWNER_EMAIL` set, and you've registered with it, so `/admin` works
+- [ ] `OWNER_EMAIL` set; you've registered with it and unlocked `/admin` (setup code = your `CRON_SECRET`, or via "Continue with Google")
+- [ ] Admin → Users & roles shows only people you expect as Owner/Staff
 - [ ] Google Calendar: API enabled, service account created, calendar shared with "Make changes to events", 3 `GOOGLE_*` calendar variables set
 - [ ] Test: make a booking, see it appear in Google Calendar; add a Busy event, see that time disappear from `/book`
 - [ ] Gmail App Password created; `SMTP_*`, `EMAIL_FROM` set; test booking confirmation arrives (check spam)

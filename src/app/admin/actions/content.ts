@@ -29,11 +29,14 @@ export async function savePost(_: ActionState, fd: FormData): Promise<ActionStat
       .parse({ id: str(fd, "id") || undefined, title: str(fd, "title"), slug: str(fd, "slug"), excerpt: str(fd, "excerpt"), category: str(fd, "category"), readMins: str(fd, "readMins") || "4", content: String(fd.get("content") ?? "") });
     const slug = slugify(d.slug || d.title);
     if (!slug) throw new UserError("Please enter a title.");
+    const clash = await prisma.post.findUnique({ where: { slug }, select: { id: true } });
+    if (clash && clash.id !== d.id) throw new UserError(`Another post already uses the URL /resources/${slug} — change the slug.`);
     const data = { title: d.title, slug, excerpt: d.excerpt, category: d.category, readMins: d.readMins, content: d.content, published: bool(fd, "published") };
     if (d.id) {
       const old = await prisma.post.findUnique({ where: { id: d.id } });
-      await prisma.post.update({ where: { id: d.id }, data: { ...data, ...(data.published && !old?.published ? { publishedAt: new Date() } : {}) } });
-      touch([`/resources/${slug}`, ...(old && old.slug !== slug ? [`/resources/${old.slug}`] : [])]);
+      if (!old) throw new UserError("This post no longer exists.");
+      await prisma.post.update({ where: { id: d.id }, data: { ...data, ...(data.published && !old.published ? { publishedAt: new Date() } : {}) } });
+      touch([`/resources/${slug}`, ...(old.slug !== slug ? [`/resources/${old.slug}`] : [])]);
       return "Post saved";
     }
     const p = await prisma.post.create({ data });

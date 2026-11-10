@@ -10,7 +10,7 @@ Log in at **/login** with your owner email, then go to **/admin** (or **My accou
 | **Staff** (e.g. a receptionist) | Bookings, customers, pricing, availability, content, inbox, reports |
 | **Instructor** | Today's schedule, bookings (view, mark complete, notes, skill ratings), own availability |
 
-Anyone whose email is in `OWNER_EMAIL` becomes Owner automatically when they register. Promote other people in **Users** after they create an account.
+To become Owner, register with the email in `OWNER_EMAIL`, then open `/admin`. You'll be asked once for your **owner setup code**, which is the `CRON_SECRET` value from Vercel. (Signing in with "Continue with Google" skips this, because Google has already confirmed the email is yours.) This stops a stranger from typing your email into the sign-up form and taking over the admin. Promote other people in **Users** after they create an account.
 
 ## Daily routine
 

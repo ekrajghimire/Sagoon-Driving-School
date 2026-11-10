@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Car, HeartHandshake, MapPin, CalendarCheck, BookOpenCheck, Phone, Star, Check, ChevronDown, ShieldCheck, User } from "lucide-react";
+import { Car, HeartHandshake, MapPin, CalendarCheck, BookOpenCheck, Phone, Star, Check, ShieldCheck, User, ArrowRight } from "lucide-react";
 import { prisma, getSettings } from "@/lib/db";
 import { aud } from "@/lib/money";
 import { durationLabel } from "@/lib/time";
 import { SITE } from "@/lib/site";
+import { FaqItem } from "@/components/content/FaqItem";
 
 export const dynamic = "force-dynamic";
 
@@ -44,26 +45,28 @@ export default async function HomePage() {
             <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">
               <span className="grid size-5 place-items-center rounded bg-accent text-xs font-black text-ink">L</span> Rockdale & St George, Sydney
             </p>
-            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="mt-4 text-[2.25rem] leading-[1.1] font-extrabold tracking-tight text-balance sm:text-5xl lg:text-6xl">
               Calm, patient driving lessons that build <span className="text-accent">real confidence</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-brand-100">
               Automatic lessons with free pickup, an instructor who genuinely enjoys teaching nervous learners, and online booking that takes two minutes.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/book" className="btn-primary px-7 text-lg">Book a lesson</Link>
-              <a href={`tel:${SITE.phoneTel}`} className="btn border border-white/40 text-white hover:bg-white/10">
+            <div className="mt-8 flex flex-col gap-3 min-[400px]:flex-row min-[400px]:flex-wrap">
+              <Link href="/book" className="btn-primary px-7 text-lg">
+                Book a lesson <ArrowRight className="size-5" aria-hidden />
+              </Link>
+              <a href={`tel:${SITE.phoneTel}`} className="btn-inverse">
                 <Phone className="size-5" aria-hidden /> {SITE.phoneDisplay}
               </a>
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-brand-100">
-              {fromPrice != null && <li className="flex items-center gap-1.5"><Check className="size-4 text-accent" /> From {aud(fromPrice, { round: true })} incl. GST</li>}
-              <li className="flex items-center gap-1.5"><Check className="size-4 text-accent" /> Pay at your lesson</li>
-              <li className="flex items-center gap-1.5"><Check className="size-4 text-accent" /> Free changes up to {settings.cancellationWindowHours}h before</li>
+              {fromPrice != null && <li className="flex items-center gap-1.5"><Check className="size-4 shrink-0 text-accent" aria-hidden /> From {aud(fromPrice, { round: true })} incl. GST</li>}
+              <li className="flex items-center gap-1.5"><Check className="size-4 shrink-0 text-accent" aria-hidden /> Pay at your lesson</li>
+              <li className="flex items-center gap-1.5"><Check className="size-4 shrink-0 text-accent" aria-hidden /> Free changes up to {settings.cancellationWindowHours}h before</li>
             </ul>
           </div>
           {/* Replace this illustration with a real photo: public/images/hero-car.jpg (instructor + car, landscape, ~1600px wide) via next/image */}
-          <div className="relative mx-auto w-full max-w-md" aria-hidden>
+          <div className="relative mx-auto w-full max-w-sm sm:max-w-md" aria-hidden>
             <div className="absolute -inset-6 rounded-[2.5rem] bg-accent/20 blur-2xl" />
             <div className="relative rounded-[2rem] border border-white/20 bg-white/10 p-6 backdrop-blur">
               <svg viewBox="0 0 400 220" className="w-full">
@@ -90,14 +93,14 @@ export default async function HomePage() {
 
       {/* Stats */}
       <section aria-label="At a glance" className="border-b border-line bg-white">
-        <div className="container-x grid grid-cols-2 gap-6 py-8 text-center sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="container-x flex flex-wrap justify-center gap-y-6 py-8 text-center">
           {stats.slice(0, 5).map((s) => (
-            <div key={s.label}>
-              <p className="text-3xl font-extrabold text-brand-700">{s.value}</p>
-              <p className="text-sm text-muted">{s.label}</p>
+            <div key={s.label} className="flex basis-1/2 flex-col-reverse px-2 sm:basis-1/3 lg:flex-1">
+              <dt className="text-sm text-muted">{s.label}</dt>
+              <dd className="text-2xl font-extrabold text-brand-700 tabular-nums sm:text-3xl">{s.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       </section>
 
       {/* Benefits */}
@@ -107,15 +110,15 @@ export default async function HomePage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BENEFITS.map((b) => (
             <div key={b.title} className="card">
-              <b.icon className="size-8 text-brand-600" aria-hidden />
-              <h3 className="mt-3 text-lg font-bold">{b.title}</h3>
+              <span className="icon-tile"><b.icon className="size-6" aria-hidden /></span>
+              <h3 className="mt-4 text-lg font-bold">{b.title}</h3>
               <p className="mt-1 text-sm text-muted">{b.text}</p>
             </div>
           ))}
-          <div className="card flex flex-col justify-center bg-brand-50">
+          <div className="card card-hover relative flex flex-col justify-center border-brand-100 bg-brand-50">
             <h3 className="text-lg font-bold">Nervous about your first lesson?</h3>
             <p className="mt-1 text-sm text-muted">Read our guide to calm, confident first drives.</p>
-            <Link href="/resources" className="mt-3 font-semibold text-brand-700 underline">Learner tips →</Link>
+            <Link href="/resources" className="link-underline mt-3 w-fit after:absolute after:inset-0 after:rounded-2xl">Learner tips →</Link>
           </div>
         </div>
       </section>
@@ -130,23 +133,25 @@ export default async function HomePage() {
             </div>
             <Link href="/pricing" className="btn-outline">See all prices & packages</Link>
           </div>
-          <div className="mt-8 grid gap-4 md:grid-cols-4">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {lessons.map((l) => (
-              <div key={l.id} className={`card ${l.popular ? "border-2 border-brand-700" : ""}`}>
-                {l.popular && <span className="badge mb-2 bg-accent text-ink">Most popular</span>}
+              <div key={l.id} className={`card card-hover relative flex flex-col ${l.popular ? "card-featured" : ""}`}>
+                {l.popular && <span className="badge mb-2 w-fit bg-accent text-ink">Most popular</span>}
                 <h3 className="font-bold">{l.name}</h3>
-                <p className="mt-1 text-3xl font-extrabold">{aud(l.priceCents, { round: true })}</p>
+                <p className="mt-1 text-3xl font-extrabold tabular-nums">{aud(l.priceCents, { round: true })}</p>
                 <p className="text-sm text-muted">{durationLabel(l.durationMins)}</p>
-                <Link href={`/book?lesson=${l.slug}`} className="mt-4 inline-block text-sm font-semibold text-brand-700 underline">Book this →</Link>
+                <Link href={`/book?lesson=${l.slug}`} className="link-underline mt-auto w-fit pt-4 text-sm after:absolute after:inset-0 after:rounded-2xl">
+                  Book this<span className="sr-only">: {l.name}</span> →
+                </Link>
               </div>
             ))}
             {popularPkg && (
-              <div className="card bg-brand-700 text-white">
-                <span className="badge mb-2 bg-accent text-ink">Best value</span>
+              <div className="card card-hover relative flex flex-col border-brand-700 bg-brand-700 text-white hover:border-brand-800">
+                <span className="badge mb-2 w-fit bg-accent text-ink">Best value</span>
                 <h3 className="font-bold">{popularPkg.name}</h3>
-                <p className="mt-1 text-3xl font-extrabold">{aud(popularPkg.priceCents, { round: true })}</p>
+                <p className="mt-1 text-3xl font-extrabold tabular-nums">{aud(popularPkg.priceCents, { round: true })}</p>
                 <p className="text-sm text-brand-100">{popularPkg.lessonCount} × {durationLabel(popularPkg.lessonDurationMins)}</p>
-                <Link href="/pricing#packages" className="mt-4 inline-block text-sm font-semibold text-accent underline">View packages →</Link>
+                <Link href="/pricing#packages" className="link-inverse mt-auto w-fit pt-4 text-sm after:absolute after:inset-0 after:rounded-2xl">View packages →</Link>
               </div>
             )}
           </div>
@@ -161,16 +166,16 @@ export default async function HomePage() {
           <>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               {testimonials.map((t) => (
-                <figure key={t.id} className="card">
-                  <div className="flex gap-0.5 text-accent-600" aria-label={`${t.rating} out of 5 stars`}>
+                <figure key={t.id} className="card flex flex-col">
+                  <div className="flex gap-0.5 text-accent-600" role="img" aria-label={`${t.rating} out of 5 stars`}>
                     {Array.from({ length: t.rating }).map((_, i) => <Star key={i} className="size-4 fill-current" aria-hidden />)}
                   </div>
-                  <blockquote className="mt-3 text-sm">&ldquo;{t.quote}&rdquo;</blockquote>
-                  <figcaption className="mt-3 text-sm font-semibold">{t.name} <span className="font-normal text-muted">· {t.suburb}</span></figcaption>
+                  <blockquote className="mt-3 flex-1 text-sm leading-relaxed">&ldquo;{t.quote}&rdquo;</blockquote>
+                  <figcaption className="mt-4 border-t border-line pt-3 text-sm font-semibold">{t.name} <span className="font-normal text-muted">· {t.suburb}</span></figcaption>
                 </figure>
               ))}
             </div>
-            <Link href="/reviews" className="mt-6 inline-block font-semibold text-brand-700 underline">Read more reviews →</Link>
+            <Link href="/reviews" className="link-underline mt-6 inline-block">Read more reviews →</Link>
           </>
         ) : (
           <div className="card mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -178,7 +183,7 @@ export default async function HomePage() {
               <h3 className="text-lg font-bold">See what learners say on Google</h3>
               <p className="text-sm text-muted">Had a lesson with us? A quick review helps other nervous learners find a patient instructor.</p>
             </div>
-            <a href={reviewsUrl} className="btn-brand" {...(reviewsUrl.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+            <a href={reviewsUrl} className="btn-brand shrink-0" {...(reviewsUrl.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
               <Star className="size-4" aria-hidden /> Read or leave a review
             </a>
           </div>
@@ -196,7 +201,7 @@ export default async function HomePage() {
           </div>
           <ul className="flex flex-wrap content-start gap-2">
             {settings.suburbs.map((s) => (
-              <li key={s} className="badge bg-white px-3 py-1.5 text-sm text-ink shadow-sm"><MapPin className="mr-1 size-3.5 text-brand-600" aria-hidden /> {s}</li>
+              <li key={s} className="badge border border-line bg-white px-3 py-1.5 text-sm text-ink"><MapPin className="size-3.5 text-brand-600" aria-hidden /> {s}</li>
             ))}
           </ul>
         </div>
@@ -213,9 +218,9 @@ export default async function HomePage() {
           <h2 className="h2 mt-1">Accredited, patient and local</h2>
           <p className="mt-3 text-muted">Every lesson is with the same NSW-licensed instructor, so you never have to start over with someone new. We explain clearly, plan each lesson around your goals and track your skills so you can see your progress.</p>
           <ul className="mt-4 space-y-2 text-sm">
-            <li className="flex gap-2"><ShieldCheck className="size-5 text-ok" aria-hidden /> Licensed NSW driving instructor</li>
-            <li className="flex gap-2"><ShieldCheck className="size-5 text-ok" aria-hidden /> Fully insured dual-control automatic</li>
-            <li className="flex gap-2"><ShieldCheck className="size-5 text-ok" aria-hidden /> Skills progress tracker in your account</li>
+            <li className="flex gap-2"><ShieldCheck className="size-5 shrink-0 text-ok" aria-hidden /> Licensed NSW driving instructor</li>
+            <li className="flex gap-2"><ShieldCheck className="size-5 shrink-0 text-ok" aria-hidden /> Fully insured dual-control automatic</li>
+            <li className="flex gap-2"><ShieldCheck className="size-5 shrink-0 text-ok" aria-hidden /> Skills progress tracker in your account</li>
           </ul>
           <Link href="/about" className="btn-outline mt-5">Meet your instructor</Link>
         </div>
@@ -229,28 +234,22 @@ export default async function HomePage() {
             <h2 id="faqh" className="h2 mt-1">Common questions</h2>
             <div className="mt-6 space-y-3">
               {faqs.map((f) => (
-                <details key={f.id} className="group card p-0 sm:p-0">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 font-semibold">
-                    {f.question}
-                    <ChevronDown className="size-5 shrink-0 transition group-open:rotate-180" aria-hidden />
-                  </summary>
-                  <p className="px-5 pb-5 text-sm text-muted">{f.answer}</p>
-                </details>
+                <FaqItem key={f.id} question={f.question} answer={f.answer} compact />
               ))}
             </div>
-            <Link href="/faq" className="mt-6 inline-block font-semibold text-brand-700 underline">All FAQs →</Link>
+            <Link href="/faq" className="link-underline mt-6 inline-block">All FAQs →</Link>
           </div>
         </section>
       )}
 
       {/* Final CTA */}
       <section className="container-x py-16">
-        <div className="rounded-3xl bg-brand-700 px-6 py-12 text-center text-white sm:px-12">
-          <h2 className="text-3xl font-extrabold">Ready when you are</h2>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-800 to-brand-600 px-6 py-12 text-center text-white sm:px-12">
+          <h2 className="text-3xl font-extrabold tracking-tight">Ready when you are</h2>
           <p className="mx-auto mt-3 max-w-xl text-brand-100">Pick a time that suits you — early mornings, after school and evenings available. Nothing to pay until your lesson.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link href="/book" className="btn-primary px-7 text-lg">Book a lesson</Link>
-            <a href={`https://wa.me/${SITE.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn border border-white/40 text-white hover:bg-white/10">Message on WhatsApp</a>
+            <a href={`https://wa.me/${SITE.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn-inverse">Message on WhatsApp</a>
           </div>
         </div>
       </section>

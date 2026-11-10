@@ -2,6 +2,8 @@
 import Script from "next/script";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import { showsBookBar } from "./StickyBookBar";
 
 const KEY = "sds-cookie-consent"; // "all" | "essential"
 const EVT = "sds-consent-change";
@@ -29,6 +31,7 @@ function read(): string | null {
 export function CookieConsent() {
   // "unknown" during server render so the banner never flashes for people who already chose.
   const choice = useSyncExternalStore(subscribe, read, () => "unknown");
+  const barVisible = showsBookBar(usePathname());
   const save = (v: string) => {
     try {
       localStorage.setItem(KEY, v);
@@ -54,16 +57,24 @@ export function CookieConsent() {
         </Script>
       )}
       {choice === null && (
-        <div role="dialog" aria-label="Cookie notice" className="fixed inset-x-3 bottom-20 z-50 mx-auto max-w-xl rounded-2xl border border-line bg-white p-4 shadow-xl sm:bottom-4">
-          <p className="text-sm">
+        // Mobile: full width, just above the sticky Call/Book bar. sm+: a compact card on the right, stacked
+        // above the chat buttons, so it never sits over the left-aligned hero CTAs or hides the chat launcher.
+        // z-[45]: above the chat (40) and sticky bar (30), below the header (50) so the open menu stays on top.
+        <section
+          aria-label="Cookie notice"
+          className={`no-print animate-pop-in fixed inset-x-3 z-[45] rounded-2xl border border-line bg-white p-4 shadow-xl sm:left-auto sm:right-5 sm:bottom-[5.5rem] sm:w-full sm:max-w-sm ${
+            barVisible ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))]" : "bottom-[max(0.75rem,env(safe-area-inset-bottom))]"
+          }`}
+        >
+          <p className="text-sm leading-relaxed">
             We use essential cookies to make this site work, and — only with your OK — analytics cookies to improve it.{" "}
-            <Link href="/privacy#cookies" className="font-semibold text-brand-700 underline">Learn more</Link>
+            <Link href="/privacy#cookies" className="link-underline">Learn more</Link>
           </p>
-          <div className="mt-3 flex gap-2">
-            <button className="btn-outline btn-sm" onClick={() => save("essential")}>Essential only</button>
-            <button className="btn-brand btn-sm" onClick={() => save("all")}>Accept all</button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" className="btn-outline btn-sm" onClick={() => save("essential")}>Essential only</button>
+            <button type="button" className="btn-brand btn-sm" onClick={() => save("all")}>Accept all</button>
           </div>
-        </div>
+        </section>
       )}
     </>
   );

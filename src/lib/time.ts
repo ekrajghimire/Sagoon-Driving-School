@@ -19,8 +19,11 @@ export function todaySydney(now: Date = new Date()) {
   return formatInTimeZone(now, TZ, "yyyy-MM-dd");
 }
 
+/** A real calendar date in YYYY-MM-DD form (rejects e.g. 2026-02-31, which Date would roll over). */
 export function isIsoDate(s: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
 /** Day of week (0 = Sunday) for a calendar date — independent of time zone. */
@@ -40,17 +43,19 @@ export function fmtSydney(d: Date, pattern: string) {
 
 /** e.g. "Tue 10 Nov 2026" */
 export const fmtDate = (d: Date) => fmtSydney(d, "EEE d MMM yyyy");
-/** e.g. "9:30am" */
-export const fmtTime = (d: Date) => fmtSydney(d, "h:mmaaa");
+/** e.g. "9:30 AM" */
+export const fmtTime = (d: Date) => fmtSydney(d, "h:mm a");
+/** e.g. "9:00 AM – 10:00 AM" */
+export const fmtRange = (start: Date, end: Date) => `${fmtTime(start)} – ${fmtTime(end)}`;
 /** e.g. "Tue 10 Nov, 9:30am" */
-export const fmtDateTime = (d: Date) => fmtSydney(d, "EEE d MMM, h:mmaaa");
+export const fmtDateTime = (d: Date) => fmtSydney(d, "EEE d MMM, h:mm a");
 
 export function minutesToLabel(min: number) {
   const h = Math.floor(min / 60);
   const m = min % 60;
-  const suffix = h >= 12 ? "pm" : "am";
+  const suffix = h >= 12 && h < 24 ? "PM" : "AM";
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${pad(m)}${suffix}`;
+  return `${h12}:${pad(m)} ${suffix}`;
 }
 
 export function durationLabel(mins: number) {

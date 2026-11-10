@@ -1,11 +1,13 @@
 import "server-only";
+import { after } from "next/server";
 import { prisma, getSettings, getInstructor } from "./db";
 import { Prisma } from "@/generated/prisma/client";
 import { generateSlots, generateSlotGrid, workingHoursFor, type BusyInterval, type Slot, type GridSlot } from "./availability";
-import { sydneyDayRange, sydneyToUtc, todaySydney, addDays, fmtDate } from "./time";
+import { sydneyDayRange, sydneyToUtc, todaySydney, addDays, fmtDate, fmtTime } from "./time";
 import { calendarConfigured, getGoogleBusy, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { sendEmail, emails } from "./email";
 import { applyPromo } from "./money";
+import { splitParts, mergeIntoBlocks, SPLIT_UNIT_MINS, type PickedSlot, type Block } from "./lesson-parts";
 import { shortRef, secretToken } from "./ids";
 
 /** Every booking write is serialised with this Postgres advisory lock (one instructor, one car). */
@@ -153,8 +155,14 @@ export async function getMonthOverview(fromDate: string, days: number, durationM
 }
 
 export type CreateBookingInput = {
+  /** Single continuous lesson: its date and start (minutes from Sydney midnight). */
   date: string;
   startMin: number;
+  /**
+   * Split lessons (see lesson-parts.ts): one 1-hour pick per hour of the lesson, on any days.
+   * When given, `date`/`startMin` are ignored.
+   */
+  slots?: PickedSlot[];
   lessonTypeId?: string | null; // a single lesson / test package / refresher
   usePackageCredit?: boolean; // redeem a package credit instead
   userId?: string | null;
@@ -178,7 +186,25 @@ function isOverlapViolation(e: unknown) {
   return s.includes("Booking_no_overlap") || s.includes("23P01") || s.includes("exclusion constraint");
 }
 
+/** Split an amount across blocks in proportion to their length, so the parts add up exactly. */
+function splitCents(total: number, blocks: Block[]) {
+  const totalMins = blocks.reduce((n, b) => n + b.durationMins, 0);
+  let left = total;
+  return blocks.map((b, i) => {
+    if (i === blocks.length - 1) return left;
+    const part = Math.round((total * b.durationMins) / totalMins);
+    left -= part;
+    return part;
+  });
+}
+
+/** Book one lesson. For split lessons this creates one booking per continuous block, all or nothing. */
 export async function createBooking(input: CreateBookingInput) {
+  const bookings = await createBookingGroup(input);
+  return bookings[0];
+}
+
+export async function createBookingGroup(input: CreateBookingInput) {
   const settings = await getSettings();
   const instructor = await getInstructor();
 
@@ -188,6 +214,7 @@ export async function createBooking(input: CreateBookingInput) {
   let priceCents: number;
   let lessonTypeId: string | null = null;
   let creditPurchaseId: string | null = null;
+  let parts = 1;
 
   if (input.usePackageCredit) {
     if (!input.userId) throw new BookingError("Please log in to use your package credits.", "NOT_ALLOWED");
@@ -208,6 +235,7 @@ export async function createBooking(input: CreateBookingInput) {
     title = lt.name;
     durationMins = lt.durationMins;
     priceCents = lt.priceCents;
+    if (!input.createdByStaff) parts = splitParts(lt.kind, lt.durationMins);
   } else if (input.createdByStaff && input.staffDurationMins) {
     title = input.staffTitle || "Driving lesson";
     durationMins = input.staffDurationMins;
@@ -218,48 +246,52 @@ export async function createBooking(input: CreateBookingInput) {
   if (input.createdByStaff && input.staffDurationMins) durationMins = input.staffDurationMins;
   if (input.createdByStaff && input.staffPriceCents != null && !creditPurchaseId) priceCents = input.staffPriceCents;
 
-  const startsAt = sydneyToUtc(input.date, input.startMin);
-  const endsAt = new Date(startsAt.getTime() + durationMins * 60_000);
+  // 2. Turn the chosen time(s) into continuous blocks.
+  let blocks: Block[];
+  if (parts > 1 && input.slots?.length) {
+    if (input.slots.length !== parts) {
+      throw new BookingError(`Please choose ${parts} one-hour time slots for this lesson.`);
+    }
+    const merged = mergeIntoBlocks(input.slots, SPLIT_UNIT_MINS);
+    if (!merged) throw new BookingError("Two of your chosen times overlap. Please pick different times.");
+    blocks = merged;
+  } else {
+    const first = input.slots?.[0] ?? { date: input.date, startMin: input.startMin };
+    if (input.slots && input.slots.length > 1) throw new BookingError("This lesson is booked as one continuous session. Please choose one start time.");
+    blocks = [{ date: first.date, startMin: first.startMin, durationMins }];
+  }
+  const dates = [...new Set(blocks.map((b) => b.date))].sort();
 
-  // 2. Promo / gift voucher.
+  // 3. Promo / gift voucher (applied once to the whole lesson).
   let promo: Awaited<ReturnType<typeof prisma.promoCode.findUnique>> = null;
   if (input.promoCode?.trim() && priceCents > 0) {
     promo = await validatePromo(input.promoCode);
   }
   const discountCents = applyPromo(priceCents, promo);
+  const blockPrices = splitCents(priceCents, blocks);
+  const blockDiscounts = splitCents(discountCents, blocks);
 
-  // 3. Read Google Calendar *before* taking the lock (network call), then re-check everything under the lock.
+  // 4. Read Google Calendar *before* taking the lock (network call), then re-check everything under the lock.
   let googleBusy: BusyInterval[] | undefined;
   if (calendarConfigured()) {
-    const { start, end } = sydneyDayRange(input.date);
     const pad = settings.travelBufferMins * 60_000;
     try {
-      googleBusy = await getGoogleBusy(new Date(start.getTime() - pad), new Date(end.getTime() + pad));
+      googleBusy = await getGoogleBusy(
+        new Date(sydneyDayRange(dates[0]).start.getTime() - pad),
+        new Date(sydneyDayRange(dates.at(-1)!).end.getTime() + pad),
+      );
     } catch (e) {
       console.error("[booking] Google Calendar read failed", e);
       throw new BookingError("We couldn't check the calendar just now. Please try again in a minute or call us.", "CALENDAR_UNAVAILABLE");
     }
   }
 
-  let booking;
+  const groupRef = blocks.length > 1 ? shortRef("GRP") : null;
+  let bookings;
   try {
-    booking = await prisma.$transaction(
+    bookings = await prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOKING_LOCK_KEY})`;
-
-        if (input.staffOverride) {
-          // Staff can book outside normal hours, but never on top of another lesson or Google event.
-          const clash = await tx.booking.findFirst({
-            where: { instructorId: instructor.id, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
-          });
-          const gClash = (googleBusy ?? []).some((g) => startsAt < g.end && endsAt > g.start);
-          if (clash || gClash) throw new BookingError("That time overlaps another lesson or calendar event.", "SLOT_TAKEN");
-        } else {
-          const { slots } = await getAvailability(input.date, durationMins, { db: tx, googleBusy: googleBusy ?? [] });
-          if (!slots.some((s) => s.startMin === input.startMin)) {
-            throw new BookingError("Sorry — that time was just taken or is no longer available. Please pick another time.", "SLOT_TAKEN");
-          }
-        }
 
         if (creditPurchaseId) {
           const used = await tx.packagePurchase.updateMany({
@@ -276,34 +308,65 @@ export async function createBooking(input: CreateBookingInput) {
           if (ok.count !== 1) throw new BookingError("That promo code has been fully used.", "PROMO");
         }
 
-        return tx.booking.create({
-          data: {
-            ref: shortRef(),
-            manageToken: secretToken(),
-            userId: input.userId ?? null,
-            customerName: input.customerName.trim(),
-            customerEmail: input.customerEmail.trim().toLowerCase(),
-            customerPhone: input.customerPhone.trim(),
-            lessonTypeId,
-            title,
-            packagePurchaseId: creditPurchaseId,
-            instructorId: instructor.id,
-            startsAt,
-            endsAt,
-            durationMins,
-            pickupAddress: input.pickupAddress.trim(),
-            pickupSuburb: input.pickupSuburb.trim(),
-            customerNotes: input.customerNotes?.trim() || null,
-            priceCents,
-            discountCents,
-            promoCodeId: promo?.id ?? null,
-            paymentStatus: creditPurchaseId ? "CREDIT" : priceCents - discountCents === 0 ? "FREE" : "UNPAID",
-            calendarSync: calendarConfigured() ? "PENDING" : "NOT_CONFIGURED",
-            createdByStaff: Boolean(input.createdByStaff),
-          },
-        });
+        const created = [];
+        for (const [i, block] of blocks.entries()) {
+          const startsAt = sydneyToUtc(block.date, block.startMin);
+          const endsAt = new Date(startsAt.getTime() + block.durationMins * 60_000);
+          const when = blocks.length > 1 ? ` (${fmtDate(startsAt)}, ${fmtTime(startsAt)})` : "";
+
+          if (input.staffOverride) {
+            // Staff can book outside normal hours, but never on top of another lesson or Google event.
+            const clash = await tx.booking.findFirst({
+              where: { instructorId: instructor.id, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+            });
+            const gClash = (googleBusy ?? []).some((g) => startsAt < g.end && endsAt > g.start);
+            if (clash || gClash) throw new BookingError("That time overlaps another lesson or calendar event.", "SLOT_TAKEN");
+          } else {
+            // Reads through `tx`, so a block created earlier in this loop is already counted (incl. travel buffer).
+            const { slots } = await getAvailability(block.date, block.durationMins, { db: tx, googleBusy: googleBusy ?? [] });
+            if (!slots.some((s) => s.startMin === block.startMin)) {
+              throw new BookingError(
+                blocks.length > 1
+                  ? `Sorry — one of your times${when} was just taken or is too close to another of your picks. Please choose again.`
+                  : "Sorry — that time was just taken or is no longer available. Please pick another time.",
+                "SLOT_TAKEN",
+              );
+            }
+          }
+
+          created.push(
+            await tx.booking.create({
+              data: {
+                ref: shortRef(),
+                manageToken: secretToken(),
+                groupRef,
+                userId: input.userId ?? null,
+                customerName: input.customerName.trim(),
+                customerEmail: input.customerEmail.trim().toLowerCase(),
+                customerPhone: input.customerPhone.trim(),
+                lessonTypeId,
+                title: blocks.length > 1 ? `${title} — part ${i + 1} of ${blocks.length}` : title,
+                packagePurchaseId: creditPurchaseId,
+                instructorId: instructor.id,
+                startsAt,
+                endsAt,
+                durationMins: block.durationMins,
+                pickupAddress: input.pickupAddress.trim(),
+                pickupSuburb: input.pickupSuburb.trim(),
+                customerNotes: input.customerNotes?.trim() || null,
+                priceCents: blockPrices[i],
+                discountCents: blockDiscounts[i],
+                promoCodeId: promo?.id ?? null,
+                paymentStatus: creditPurchaseId ? "CREDIT" : priceCents - discountCents === 0 ? "FREE" : "UNPAID",
+                calendarSync: calendarConfigured() ? "PENDING" : "NOT_CONFIGURED",
+                createdByStaff: Boolean(input.createdByStaff),
+              },
+            }),
+          );
+        }
+        return created;
       },
-      { timeout: 15_000, maxWait: 10_000 },
+      { timeout: 20_000, maxWait: 10_000 },
     );
   } catch (e) {
     if (isOverlapViolation(e)) {
@@ -312,10 +375,24 @@ export async function createBooking(input: CreateBookingInput) {
     throw e;
   }
 
-  await syncToCalendar(booking.id);
-  await sendEmail(emails.confirmation(booking));
-  if (process.env.OWNER_EMAIL) await sendEmail(emails.ownerNewBooking(booking, process.env.OWNER_EMAIL));
-  return booking;
+  // The booking is saved. Calendar sync and emails run after the response, so a slow Google or email
+  // server can never make a saved booking look failed (which would tempt the customer to book again).
+  runAfter(async () => {
+    for (const b of bookings) await syncToCalendar(b.id);
+    await sendEmail(emails.confirmation(bookings, settings.cancellationWindowHours));
+    if (process.env.OWNER_EMAIL) await sendEmail(emails.ownerNewBooking(bookings, process.env.OWNER_EMAIL));
+  });
+  return bookings;
+}
+
+/** Run side effects after the response when inside a request (Vercel keeps the function alive); otherwise inline. */
+function runAfter(task: () => Promise<void>) {
+  const safe = () => task().catch((e) => console.error("[after] side effect failed", e));
+  try {
+    after(safe);
+  } catch {
+    void safe(); // not in a request (scripts/tests)
+  }
 }
 
 export async function validatePromo(code: string) {
@@ -337,16 +414,15 @@ export async function syncToCalendar(bookingId: string) {
       await prisma.booking.update({ where: { id: b.id }, data: { calendarSync: "SYNCED", calendarError: null } });
       return;
     }
-    if (b.googleEventId) {
-      await updateCalendarEvent(b.googleEventId, b);
-      await prisma.booking.update({ where: { id: b.id }, data: { calendarSync: "SYNCED", calendarError: null } });
-    } else {
-      const eventId = await createCalendarEvent(b);
-      await prisma.booking.update({ where: { id: b.id }, data: { googleEventId: eventId, calendarSync: "SYNCED", calendarError: null } });
-    }
+    // Create/update is idempotent: the event id is derived from the booking id, and an event deleted by
+    // hand in Google Calendar is simply recreated.
+    const eventId = b.googleEventId ? await updateCalendarEvent(b.googleEventId, b) : await createCalendarEvent(b);
+    await prisma.booking.update({ where: { id: b.id }, data: { googleEventId: eventId, calendarSync: "SYNCED", calendarError: null } });
   } catch (e) {
     console.error("[calendar] sync failed", e);
-    await prisma.booking.update({ where: { id: b.id }, data: { calendarSync: "FAILED", calendarError: String(e).slice(0, 500) } });
+    await prisma.booking
+      .update({ where: { id: b.id }, data: { calendarSync: "FAILED", calendarError: String(e).slice(0, 500) } })
+      .catch((err) => console.error("[calendar] could not record failure", err));
   }
 }
 
@@ -365,21 +441,31 @@ export async function cancelBooking(bookingId: string, opts: { byStaff?: boolean
     );
   }
   const updated = await prisma.$transaction(async (tx) => {
-    const u = await tx.booking.update({
-      where: { id: b.id },
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOKING_LOCK_KEY})`;
+    // Only one of two simultaneous cancels can succeed, so credits and promo uses are returned once.
+    const done = await tx.booking.updateMany({
+      where: { id: b.id, status: "CONFIRMED" },
       data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: opts.reason ?? null, calendarSync: calendarConfigured() ? "PENDING" : "NOT_CONFIGURED" },
     });
+    if (done.count !== 1) throw new BookingError("This booking has already been cancelled.", "NOT_ALLOWED");
+    const u = await tx.booking.findUniqueOrThrow({ where: { id: b.id } });
     if (b.packagePurchaseId) {
       await tx.packagePurchase.updateMany({ where: { id: b.packagePurchaseId, creditsUsed: { gt: 0 } }, data: { creditsUsed: { decrement: 1 } } });
     }
-    if (b.promoCodeId) {
+    // A promo is used once per lesson: for split lessons, return it only when the last part is cancelled.
+    const siblingsActive = b.groupRef
+      ? await tx.booking.count({ where: { groupRef: b.groupRef, id: { not: b.id }, status: { in: ["CONFIRMED", "COMPLETED"] } } })
+      : 0;
+    if (b.promoCodeId && siblingsActive === 0) {
       await tx.promoCode.updateMany({ where: { id: b.promoCodeId, uses: { gt: 0 } }, data: { uses: { decrement: 1 } } });
     }
     return u;
   });
-  await syncToCalendar(b.id);
-  await sendEmail(emails.cancelled(updated, opts.reason));
-  await notifyWaitlist(b.startsAt);
+  runAfter(async () => {
+    await syncToCalendar(b.id);
+    await sendEmail(emails.cancelled(updated, opts.reason));
+    await notifyWaitlist(b.startsAt);
+  });
   return updated;
 }
 
@@ -409,10 +495,12 @@ export async function rescheduleBooking(bookingId: string, date: string, startMi
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOKING_LOCK_KEY})`;
         const { slots } = await getAvailability(date, b.durationMins, { db: tx, googleBusy, excludeBookingId: b.id });
         if (!slots.some((s) => s.startMin === startMin)) throw new BookingError("Sorry — that time isn't available. Please pick another.", "SLOT_TAKEN");
-        return tx.booking.update({
-          where: { id: b.id },
+        const moved = await tx.booking.updateMany({
+          where: { id: b.id, status: "CONFIRMED" },
           data: { startsAt, endsAt, reminder24SentAt: null, reminder2SentAt: null, calendarSync: calendarConfigured() ? "PENDING" : "NOT_CONFIGURED" },
         });
+        if (moved.count !== 1) throw new BookingError("This booking can't be changed any more.", "NOT_ALLOWED");
+        return tx.booking.findUniqueOrThrow({ where: { id: b.id } });
       },
       { timeout: 15_000, maxWait: 10_000 },
     );
@@ -420,9 +508,11 @@ export async function rescheduleBooking(bookingId: string, date: string, startMi
     if (isOverlapViolation(e)) throw new BookingError("Sorry — that time was just taken.", "SLOT_TAKEN");
     throw e;
   }
-  await syncToCalendar(b.id);
-  await sendEmail(emails.rescheduled(updated, b.startsAt));
-  await notifyWaitlist(b.startsAt);
+  runAfter(async () => {
+    await syncToCalendar(b.id);
+    await sendEmail(emails.rescheduled(updated, b.startsAt));
+    await notifyWaitlist(b.startsAt);
+  });
   return updated;
 }
 
@@ -441,6 +531,7 @@ export async function creditBalance(userId: string) {
   const purchases = await prisma.packagePurchase.findMany({
     where: { userId, status: { in: ["PAID", "PENDING_PAYMENT"] } },
     include: { package: true },
+    orderBy: { createdAt: "asc" }, // same order the booking uses, so the wizard offers the right lesson length
   });
   return {
     remaining: purchases.reduce((n, p) => n + (p.creditsTotal - p.creditsUsed), 0),

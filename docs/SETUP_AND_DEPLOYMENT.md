@@ -117,7 +117,7 @@ GitHub may delay scheduled runs by a few minutes at busy times. That's fine for 
 ## 8. Create your owner account
 
 1. Make sure `OWNER_EMAIL` is set to your email.
-2. Visit `/register` and sign up with that email (or "Continue with Google"). You'll be given the **Owner** role.
+2. Visit `/register` and sign up with that email, then open `/admin`. Enter your **owner setup code** (the `CRON_SECRET` value from step 7) once to unlock the dashboard. With "Continue with Google" you're made Owner straight away.
 3. Open `/admin`. Go through **Settings** (business details, ABN, your bio) and **Availability** (hours, buffer, holidays).
 
 ## 9. Domain & SEO

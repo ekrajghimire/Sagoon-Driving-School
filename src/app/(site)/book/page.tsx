@@ -32,12 +32,13 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
         </p>
         <div className="mt-8">
           <BookingWizard
-            lessonTypes={lessonTypes.map((l) => ({ id: l.id, slug: l.slug, name: l.name, description: l.description, durationMins: l.durationMins, priceCents: l.priceCents, popular: l.popular }))}
+            lessonTypes={lessonTypes.map((l) => ({ id: l.id, slug: l.slug, name: l.name, description: l.description, durationMins: l.durationMins, priceCents: l.priceCents, popular: l.popular, kind: l.kind }))}
             credit={creditPurchase ? { remaining: credits!.remaining, durationMins: creditPurchase.package.lessonDurationMins, name: creditPurchase.package.name } : null}
             user={user ? { name: user.name, email: user.email, phone: user.phone ?? "" } : null}
             suburbs={settings.suburbs}
             addresses={addresses.map((a) => ({ id: a.id, address: a.address, suburb: a.suburb }))}
             maxAdvanceDays={settings.maxAdvanceDays}
+            bufferMins={settings.travelBufferMins}
             initialLessonSlug={sp.lesson}
             initialDate={sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : undefined}
             cancellationHours={settings.cancellationWindowHours}

@@ -19,6 +19,9 @@ export async function buyPackage(_: FormState, fd: FormData): Promise<FormState>
   const code = String(fd.get("promo") ?? "").trim();
   const pkg = await prisma.package.findFirst({ where: { slug, active: true } });
   if (!pkg) return { error: "That package isn't available." };
+  // Credits can be used before payment, so allow only one unpaid package at a time.
+  const unpaid = await prisma.packagePurchase.count({ where: { userId: user.id, status: "PENDING_PAYMENT" } });
+  if (unpaid > 0) return { error: "You already have a package awaiting payment. Please pay for it at your next lesson (or call us) before ordering another." };
   let promo = null;
   if (code) {
     try {

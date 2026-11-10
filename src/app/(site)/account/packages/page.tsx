@@ -26,12 +26,12 @@ export default async function PackagesPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-6">
       {sp.ordered && (
-        <p className="rounded-xl bg-green-50 p-4 font-semibold text-ok" role="status">
-          Package added! You can <Link href="/book" className="underline">book your lessons</Link> now.
+        <p className="rounded-xl border border-green-200 bg-green-50 p-4 font-semibold text-ok" role="status">
+          Package added! You can <Link href="/book" className="underline underline-offset-4 hover:decoration-2">book your lessons</Link> now.
         </p>
       )}
       {toBuy && (
-        <section className="card border-2 border-brand-700">
+        <section className="card card-featured">
           <h2 className="text-xl font-bold">{toBuy.name}</h2>
           <p className="text-sm text-muted">{toBuy.lessonCount} × {durationLabel(toBuy.lessonDurationMins)} lessons · {aud(toBuy.priceCents)} incl. GST</p>
           <ul className="mt-2 list-disc pl-5 text-sm">{toBuy.features.map((f) => <li key={f}>{f}</li>)}</ul>
@@ -39,22 +39,22 @@ export default async function PackagesPage({ searchParams }: { searchParams: Pro
         </section>
       )}
       <section>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xl font-bold">Your packages</h2>
           <Link href="/pricing#packages" className="btn-outline btn-sm">Browse packages</Link>
         </div>
         {purchases.length === 0 ? (
-          <p className="rounded-xl bg-white p-6 text-center text-muted">No packages yet. Packages save you money on every lesson.</p>
+          <p className="rounded-2xl border border-dashed border-line bg-white p-6 text-center text-muted">No packages yet. Packages save you money on every lesson.</p>
         ) : (
-          <ul className="divide-y divide-line rounded-2xl border border-line bg-white">
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
             {purchases.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <li key={p.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-bold">{p.package.name} <span className={`badge ml-1 ${STATUS[p.status][1]}`}>{STATUS[p.status][0]}</span></p>
+                  <p className="flex flex-wrap items-center gap-2 font-bold">{p.package.name} <span className={`badge ${STATUS[p.status]?.[1] ?? "bg-surface text-muted"}`}>{STATUS[p.status]?.[0] ?? p.status}</span></p>
                   <p className="text-sm text-muted">Ordered {fmtDate(p.createdAt)} · ref {p.ref} · {aud(p.priceCents - p.discountCents)}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <p className="text-sm"><strong className="text-lg">{p.creditsTotal - p.creditsUsed}</strong> of {p.creditsTotal} left</p>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <p className="text-sm"><strong className="text-lg tabular-nums">{p.creditsTotal - p.creditsUsed}</strong> of {p.creditsTotal} left</p>
                   <Link href={`/invoice/purchase/${p.id}`} className="btn-ghost btn-sm">Invoice</Link>
                 </div>
               </li>

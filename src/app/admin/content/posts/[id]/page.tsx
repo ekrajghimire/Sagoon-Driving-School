@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/session";
@@ -19,9 +18,7 @@ export default async function EditPostPage({ params, searchParams }: { params: P
   return (
     <>
       {sp.created && <p role="status" className="mb-4 rounded-xl bg-green-50 p-3 text-sm font-semibold text-ok">✓ Post created.</p>}
-      <PageHeader title={post ? "Edit post" : "New post"}>
-        <Link href="/admin/content?tab=posts" className="btn-ghost btn-sm">← All posts</Link>
-      </PageHeader>
+      <PageHeader title={post ? "Edit post" : "New post"} back={{ href: "/admin/content?tab=posts", label: "All posts" }} />
       <PostEditor post={post} categories={cats.map((c) => c.category)} />
     </>
   );

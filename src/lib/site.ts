@@ -40,7 +40,7 @@ export const SITE = {
   region: "NSW",
   postcode: "2216",
   geo: { lat: -33.9524, lng: 151.1371 },
-  hoursText: ["Mon–Fri 7:00am – 7:00pm", "Sat 8:00am – 4:00pm", "Sun closed"],
+  hoursText: ["Mon–Fri 7:00 AM – 7:00 PM", "Sat 8:00 AM – 4:00 PM", "Sun closed"],
   transmission: "Automatic",
 } as const;
 

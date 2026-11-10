@@ -24,8 +24,9 @@ export async function toggleHandled(_: ActionState, fd: FormData): Promise<Actio
 export async function deleteMessage(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireStaff(ADMINS);
   return attempt(async () => {
-    await prisma.contactMessage.delete({ where: { id: id.parse(str(fd, "id")) } });
+    await prisma.contactMessage.deleteMany({ where: { id: id.parse(str(fd, "id")) } });
     revalidatePath("/admin/inbox");
+    revalidatePath("/admin");
     return "Deleted";
   });
 }
@@ -33,7 +34,7 @@ export async function deleteMessage(_: ActionState, fd: FormData): Promise<Actio
 export async function deleteWaitlistEntry(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireStaff(ADMINS);
   return attempt(async () => {
-    await prisma.waitlistEntry.delete({ where: { id: id.parse(str(fd, "id")) } });
+    await prisma.waitlistEntry.deleteMany({ where: { id: id.parse(str(fd, "id")) } });
     revalidatePath("/admin/inbox");
     revalidatePath("/admin");
     return "Removed from waitlist";
@@ -43,7 +44,7 @@ export async function deleteWaitlistEntry(_: ActionState, fd: FormData): Promise
 export async function deleteSubscriber(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireStaff(ADMINS);
   return attempt(async () => {
-    await prisma.newsletterSubscriber.delete({ where: { id: id.parse(str(fd, "id")) } });
+    await prisma.newsletterSubscriber.deleteMany({ where: { id: id.parse(str(fd, "id")) } });
     revalidatePath("/admin/inbox");
     return "Unsubscribed";
   });

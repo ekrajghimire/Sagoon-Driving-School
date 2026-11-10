@@ -1,7 +1,7 @@
 "use server";
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { createBooking, BookingError } from "@/lib/booking-service";
+import { createBookingGroup, BookingError } from "@/lib/booking-service";
 import { getCurrentUser } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { isIsoDate } from "@/lib/time";
@@ -11,6 +11,12 @@ const schema = z
   .object({
     date: z.string().refine(isIsoDate, "Invalid date"),
     startMin: z.number().int().min(0).max(1439),
+    // Split lessons: one pick per hour (e.g. a 2-hour lesson as two 1-hour sessions).
+    slots: z
+      .array(z.object({ date: z.string().refine(isIsoDate, "Invalid date"), startMin: z.number().int().min(0).max(1439) }))
+      .min(1)
+      .max(6)
+      .optional(),
     lessonTypeId: z.string().nullable().optional(),
     usePackageCredit: z.boolean().optional(),
     customerName: z.string().trim().min(2, "Please enter your full name").max(100),
@@ -36,8 +42,8 @@ export async function createBookingAction(payload: unknown): Promise<BookingResu
 
   let token: string;
   try {
-    const booking = await createBooking({ ...d, userId: user?.id ?? null });
-    token = booking.manageToken;
+    const bookings = await createBookingGroup({ ...d, userId: user?.id ?? null });
+    token = bookings[0].manageToken;
     if (user && d.saveAddress) {
       const exists = await prisma.savedAddress.findFirst({ where: { userId: user.id, address: d.pickupAddress } });
       if (!exists) await prisma.savedAddress.create({ data: { userId: user.id, label: "Pickup", address: d.pickupAddress, suburb: d.pickupSuburb } });

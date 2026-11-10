@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { JWT } from "google-auth-library";
 import { TZ } from "./time";
 import { SITE } from "./site";
@@ -145,21 +146,42 @@ function eventBody(b: CalendarBooking) {
     start: { dateTime: b.startsAt.toISOString(), timeZone: TZ },
     end: { dateTime: b.endsAt.toISOString(), timeZone: TZ },
     colorId: "9",
+    status: "confirmed", // also revives an event the owner deleted by hand
     extendedProperties: { private: { sdsBookingId: b.id } },
     reminders: { useDefault: true },
   };
 }
 
-export async function createCalendarEvent(b: CalendarBooking) {
-  const e = await gcal<GEvent>(`/calendars/${calId()}/events`, { method: "POST", body: JSON.stringify(eventBody(b)) });
-  return e.id;
+/** Stable Google event id per booking (Google allows a–v and 0–9), so retries never create duplicates. */
+export function eventIdFor(bookingId: string) {
+  return `sds${createHash("sha256").update(bookingId).digest("hex").slice(0, 40)}`;
 }
 
+const putEvent = (eventId: string, b: CalendarBooking) =>
+  gcal<GEvent | undefined>(`/calendars/${calId()}/events/${encodeURIComponent(eventId)}`, { method: "PUT", body: JSON.stringify(eventBody(b)) });
+
+/** Create the booking's event (or restore it if it already exists / was deleted by hand). Returns the event id. */
+export async function createCalendarEvent(b: CalendarBooking) {
+  const id = eventIdFor(b.id);
+  try {
+    await gcal(`/calendars/${calId()}/events`, { method: "POST", body: JSON.stringify({ ...eventBody(b), id }) });
+  } catch (e) {
+    if (!String(e).includes(" 409")) throw e; // already exists (e.g. an earlier attempt timed out) → update it instead
+    await putEvent(id, b);
+  }
+  return id;
+}
+
+/** Update the booking's event; if it was deleted in Google Calendar, recreate it. Returns the event id. */
 export async function updateCalendarEvent(eventId: string, b: CalendarBooking) {
-  await gcal(`/calendars/${calId()}/events/${encodeURIComponent(eventId)}`, {
-    method: "PUT",
-    body: JSON.stringify(eventBody(b)),
-  });
+  try {
+    const res = await putEvent(eventId, b);
+    if (res === undefined) return createCalendarEvent(b); // 410 Gone
+    return eventId;
+  } catch (e) {
+    if (String(e).includes(" 404")) return createCalendarEvent(b);
+    throw e;
+  }
 }
 
 export async function deleteCalendarEvent(eventId: string) {

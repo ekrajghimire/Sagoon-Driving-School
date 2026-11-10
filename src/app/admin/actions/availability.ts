@@ -3,7 +3,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma, getInstructor } from "@/lib/db";
 import { requireStaff } from "@/lib/session";
-import { sydneyToUtc, sydneyDayRange, isIsoDate } from "@/lib/time";
+import { sydneyToUtc, sydneyDayRange, isIsoDate, addDays } from "@/lib/time";
 import { attempt, str, bool, hhmmToMinutes, UserError } from "../_lib/action-utils";
 import { ALL_STAFF, ADMINS } from "../_lib/roles";
 import type { ActionState } from "../_lib/types";
@@ -11,6 +11,7 @@ import type { ActionState } from "../_lib/types";
 function touch() {
   revalidatePath("/admin/availability");
   revalidatePath("/admin/bookings");
+  revalidatePath("/book");
 }
 
 const hoursSchema = z
@@ -21,6 +22,7 @@ export async function saveWorkingHours(_: ActionState, fd: FormData): Promise<Ac
   await requireStaff(ALL_STAFF);
   return attempt(async () => {
     const rows = hoursSchema.parse(JSON.parse(str(fd, "hours") || "[]"));
+    if (!rows.length) throw new UserError("Add at least one block of working hours — otherwise nobody can book online. To take time off, use “Block out time” instead.");
     const instructor = await getInstructor();
     const parsed = rows.map((r) => ({ weekday: r.weekday, startMin: hhmmToMinutes(r.start), endMin: hhmmToMinutes(r.end) }));
     for (const r of parsed) if (r.endMin <= r.startMin) throw new UserError("Each range must end after it starts.");
@@ -43,15 +45,17 @@ export async function addBlockedTime(_: ActionState, fd: FormData): Promise<Acti
     const date = str(fd, "date");
     const endDate = str(fd, "endDate") || date;
     if (!isIsoDate(date) || !isIsoDate(endDate) || endDate < date) throw new UserError("Choose valid dates.");
+    if (endDate > addDays(date, 366)) throw new UserError("Block at most a year at a time.");
     const allDay = bool(fd, "allDay");
     const startsAt = allDay ? sydneyDayRange(date).start : sydneyToUtc(date, hhmmToMinutes(str(fd, "start")));
     const endsAt = allDay ? sydneyDayRange(endDate).end : sydneyToUtc(endDate, hhmmToMinutes(str(fd, "end")));
     if (endsAt <= startsAt) throw new UserError("The end must be after the start.");
+    if (endsAt <= new Date()) throw new UserError("That time is already in the past.");
     await prisma.blockedTime.create({ data: { startsAt, endsAt, reason: str(fd, "reason").slice(0, 120) || null } });
     const clashes = await prisma.booking.count({ where: { status: "CONFIRMED", startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } });
     touch();
     return clashes
-      ? `Blocked. ⚠ ${clashes} existing booking(s) fall in this period — they are NOT cancelled automatically; check Bookings.`
+      ? `Blocked. Heads up: ${clashes} existing booking${clashes === 1 ? "" : "s"} fall in this period — they are NOT cancelled automatically; check Bookings.`
       : "Time blocked — it's no longer offered online";
   });
 }

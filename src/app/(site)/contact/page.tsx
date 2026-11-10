@@ -19,30 +19,30 @@ export default async function ContactPage() {
       <h1 className="h1 mt-2">Get in touch</h1>
       <p className="mt-3 max-w-2xl text-lg text-muted">Questions about lessons, packages or your test? We&apos;re happy to help — we usually reply within a few hours.</p>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[3fr_2fr]">
+      <div className="mt-10 grid items-start gap-8 lg:grid-cols-[3fr_2fr]">
         <div className="card">
           <h2 className="mb-4 text-xl font-bold">Send a message</h2>
           <ContactForm />
         </div>
 
         <div className="space-y-4">
-          <div className="card space-y-4">
-            <a href={`tel:${SITE.phoneTel}`} className="flex items-center gap-3 font-semibold hover:text-brand-700">
-              <span className="grid size-10 place-items-center rounded-full bg-brand-50"><Phone className="size-5 text-brand-700" aria-hidden /></span>
+          <div className="card space-y-5">
+            <a href={`tel:${SITE.phoneTel}`} className="flex items-center gap-3 rounded-xl p-2 -m-2 font-semibold transition-colors hover:bg-brand-50 hover:text-brand-700">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50"><Phone className="size-5 text-brand-700" aria-hidden /></span>
               <span>Call or text<span className="block text-lg">{SITE.phoneDisplay}</span></span>
             </a>
-            <a href={`https://wa.me/${settings.whatsappNumber || SITE.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 font-semibold hover:text-brand-700">
-              <span className="grid size-10 place-items-center rounded-full bg-green-50"><MessageCircle className="size-5 text-[#128C7E]" aria-hidden /></span>
-              <span>WhatsApp<span className="block text-sm font-normal text-muted">Message us any time</span></span>
+            <a href={`https://wa.me/${settings.whatsappNumber || SITE.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-xl p-2 -m-2 font-semibold transition-colors hover:bg-brand-50 hover:text-brand-700">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-green-50"><MessageCircle className="size-5 text-[#128C7E]" aria-hidden /></span>
+              <span>WhatsApp<span className="block text-sm font-normal text-muted">Message us any time</span><span className="sr-only"> (opens in a new tab)</span></span>
             </a>
-            <a href={`mailto:${settings.email}`} className="flex items-center gap-3 font-semibold hover:text-brand-700">
-              <span className="grid size-10 place-items-center rounded-full bg-brand-50"><Mail className="size-5 text-brand-700" aria-hidden /></span>
-              <span className="break-all">{settings.email}</span>
+            <a href={`mailto:${settings.email}`} className="flex items-center gap-3 rounded-xl p-2 -m-2 font-semibold transition-colors hover:bg-brand-50 hover:text-brand-700 min-w-0">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50"><Mail className="size-5 text-brand-700" aria-hidden /></span>
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{settings.email}</span>
             </a>
           </div>
           <div className="card">
             <h2 className="flex items-center gap-2 font-bold"><Clock className="size-5 text-brand-600" aria-hidden /> Lesson hours</h2>
-            <ul className="mt-2 space-y-1 text-sm">{SITE.hoursText.map((h) => <li key={h}>{h}</li>)}</ul>
+            <ul className="mt-2 space-y-1 text-sm tabular-nums">{SITE.hoursText.map((h) => <li key={h}>{h}</li>)}</ul>
             <p className="mt-2 text-xs text-muted">Closed on NSW public holidays.</p>
           </div>
           <div className="card">
@@ -52,13 +52,13 @@ export default async function ContactPage() {
         </div>
       </div>
 
-      <div className="mt-10 overflow-hidden rounded-2xl border border-line">
+      <div className="mt-10 overflow-hidden rounded-2xl border border-line bg-surface">
         <iframe
           title="Map of Rockdale NSW, our service area"
           src="https://www.google.com/maps?q=Rockdale+NSW+2216&output=embed"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          className="h-80 w-full"
+          className="block h-72 w-full sm:h-80"
         />
       </div>
     </div>

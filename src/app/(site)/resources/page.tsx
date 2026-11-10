@@ -60,12 +60,15 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
           <p className="mt-3 text-lg text-muted">Plain-English guides to help you prepare, practise and pass — written by a driving instructor.</p>
           <form action="/resources" role="search" className="mt-6 flex gap-2">
             <label htmlFor="q" className="sr-only">Search guides</label>
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted" aria-hidden />
-              <input id="q" name="q" defaultValue={q} placeholder="Search e.g. roundabouts, logbook, parking" className="input pl-10" />
+              <input id="q" name="q" type="search" defaultValue={q} placeholder="Search e.g. roundabouts, logbook" className="input pl-10" />
             </div>
             {category && <input type="hidden" name="category" value={category} />}
-            <button className="btn-brand">Search</button>
+            <button className="btn-brand shrink-0 px-4 sm:px-5">
+              <Search className="size-4 sm:hidden" aria-hidden />
+              <span className="sr-only sm:not-sr-only">Search</span>
+            </button>
           </form>
         </div>
       </section>
@@ -73,12 +76,12 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
       <div className="container-x grid gap-10 py-10 lg:grid-cols-[1fr_300px]">
         <div>
           <nav aria-label="Categories" className="flex flex-wrap gap-2">
-            <Link href={chipHref()} aria-current={!category ? "page" : undefined} className="badge bg-surface px-3 py-1.5 text-sm text-ink hover:bg-brand-50 aria-[current=page]:bg-brand-700 aria-[current=page]:text-white">
+            <Link href={chipHref()} aria-current={!category ? "page" : undefined} className="chip">
               All
             </Link>
             {cats.map((c) => (
-              <Link key={c.category} href={chipHref(c.category)} aria-current={category === c.category ? "page" : undefined} className="badge bg-surface px-3 py-1.5 text-sm text-ink hover:bg-brand-50 aria-[current=page]:bg-brand-700 aria-[current=page]:text-white">
-                {c.category} <span className="ml-1 opacity-70">({c._count})</span>
+              <Link key={c.category} href={chipHref(c.category)} aria-current={category === c.category ? "page" : undefined} className="chip">
+                {c.category} <span className="opacity-75">({c._count})</span>
               </Link>
             ))}
           </nav>
@@ -89,38 +92,41 @@ export default async function ResourcesPage({ searchParams }: { searchParams: Pr
             <ul className="mt-6 grid gap-4 sm:grid-cols-2">
               {posts.map((p) => (
                 <li key={p.slug}>
-                  <Link href={`/resources/${p.slug}`} className="card flex h-full flex-col transition hover:border-brand-500 hover:shadow-md">
+                  <Link href={`/resources/${p.slug}`} className="card card-hover group flex h-full flex-col">
                     <span className="badge w-fit bg-brand-50 text-brand-700">{p.category}</span>
-                    <h2 className="mt-3 text-lg font-bold">{p.title}</h2>
+                    <h2 className="mt-3 text-lg font-bold text-balance transition-colors group-hover:text-brand-700">{p.title}</h2>
                     <p className="mt-1 flex-1 text-sm text-muted">{p.excerpt}</p>
-                    <p className="mt-3 flex items-center gap-1 text-xs text-muted"><Clock className="size-3.5" aria-hidden /> {p.readMins} min read</p>
+                    <p className="mt-4 flex items-center justify-between gap-2 text-xs text-muted">
+                      <span className="inline-flex items-center gap-1"><Clock className="size-3.5" aria-hidden /> {p.readMins} min read</span>
+                      <span aria-hidden className="font-semibold text-brand-700 transition-transform group-hover:translate-x-0.5">Read →</span>
+                    </p>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-8 rounded-xl bg-surface p-6 text-muted">No guides found. Try another search or <Link href="/resources" className="font-semibold text-brand-700 underline">see all guides</Link>.</p>
+            <p className="mt-8 rounded-2xl border border-dashed border-line bg-surface p-6 text-center text-muted">No guides found. Try another search or <Link href="/resources" className="link-underline">see all guides</Link>.</p>
           )}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="card">
             <h2 className="font-bold">Official NSW information</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {OFFICIAL.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 font-semibold text-brand-700 hover:underline">
-                    <ExternalLink className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {l.label}
+                  <a href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 rounded-sm font-semibold text-brand-700 hover:underline hover:underline-offset-4">
+                    <ExternalLink className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {l.label}<span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          <div role="note" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm">
             <p className="flex items-center gap-2 font-bold"><Info className="size-4" aria-hidden /> Please note</p>
             <p className="mt-1">These guides are general information only. Licensing rules and road rules change — always check the latest requirements with Transport for NSW and Service NSW.</p>
           </div>
-          <div className="card bg-brand-700 text-white">
+          <div className="card border-brand-700 bg-gradient-to-br from-brand-800 to-brand-600 text-white">
             <h2 className="font-bold">Ready to practise?</h2>
             <p className="mt-1 text-sm text-brand-100">Put these tips into action with a calm, patient lesson.</p>
             <Link href="/book" className="btn-primary btn-sm mt-3">Book a lesson</Link>

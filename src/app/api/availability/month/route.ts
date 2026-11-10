@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const from = sp.get("from") ?? "";
-  const days = Math.min(62, Math.max(1, Number(sp.get("days") ?? 42)));
+  const rawDays = Number(sp.get("days") ?? 42);
+  const days = Number.isFinite(rawDays) ? Math.min(62, Math.max(1, Math.trunc(rawDays))) : 42;
   const duration = Number(sp.get("duration"));
   if (!isIsoDate(from) || !Number.isInteger(duration) || duration < 30 || duration > 300) {
     return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });

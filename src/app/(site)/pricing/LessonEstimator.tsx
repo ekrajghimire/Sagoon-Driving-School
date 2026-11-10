@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { Check, RotateCcw, Sparkles } from "lucide-react";
 
 type Pkg = { slug: string; name: string; lessonCount: number; priceCents: number };
 type Lesson = { slug: string; name: string; kind: string };
@@ -80,26 +81,53 @@ export function LessonEstimator({ packages, lessons }: { packages: Pkg[]; lesson
   }
 
   return (
-    <div className="card mt-6">
+    <div className="card mt-6" data-estimator>
       <div className="space-y-6">
-        {Q.map((q) => (
+        {Q.map((q, i) => (
           <fieldset key={q.key}>
-            <legend className="font-bold">{q.q}</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {q.opts.map((o) => (
-                <label key={o.v} className={`cursor-pointer rounded-full border px-4 py-2 text-sm font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-500 ${a[q.key] === o.v ? "border-brand-700 bg-brand-700 text-white" : "border-line bg-white hover:border-brand-500"}`}>
-                  <input type="radio" name={q.key} value={o.v} className="sr-only" checked={a[q.key] === o.v} onChange={() => setA((s) => ({ ...s, [q.key]: o.v }))} />
-                  {o.l}
-                </label>
-              ))}
+            <legend className="flex items-center gap-2 font-bold">
+              <span
+                aria-hidden
+                className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-extrabold transition-colors ${a[q.key] ? "bg-ok text-white" : "bg-brand-50 text-brand-700"}`}
+              >
+                {a[q.key] ? <Check className="size-3.5" /> : i + 1}
+              </span>
+              {q.q}
+            </legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {q.opts.map((o) => {
+                const on = a[q.key] === o.v;
+                return (
+                  <label
+                    key={o.v}
+                    className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors select-none has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-500 ${
+                      on ? "border-brand-700 bg-brand-700 text-white" : "border-line bg-white hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700"
+                    }`}
+                  >
+                    <input type="radio" name={q.key} value={o.v} className="sr-only" checked={on} onChange={() => setA((s) => ({ ...s, [q.key]: o.v }))} />
+                    {on && <Check className="size-4" aria-hidden />}
+                    {o.l}
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
         ))}
       </div>
       <div aria-live="polite">
         {done && (
-          <div className="mt-6 rounded-xl bg-brand-50 p-5">
-            <p className="text-sm font-semibold text-brand-700">Our suggestion</p>
+          <div className="animate-pop-in mt-6 rounded-xl border border-brand-100 bg-brand-50 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-700"><Sparkles className="size-4" aria-hidden /> Our suggestion</p>
+              <button type="button" className="btn-ghost btn-sm -mt-1.5 -mr-2" onClick={(e) => {
+                  // Move focus back to the first question so keyboard users aren't dropped on <body>.
+                  e.currentTarget.closest("[data-estimator]")?.querySelector<HTMLInputElement>("input[type=radio]")?.focus();
+                  setA({});
+                }}
+              >
+                <RotateCcw className="size-4" aria-hidden /> Start again
+              </button>
+            </div>
             <p className="text-2xl font-extrabold">{range}</p>
             <p className="mt-2 text-sm">{advice}</p>
             <div className="mt-4 flex flex-wrap gap-2">

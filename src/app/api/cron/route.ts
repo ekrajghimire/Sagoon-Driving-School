@@ -32,9 +32,11 @@ export async function GET(req: NextRequest) {
     take: 50,
   });
   for (const b of due24) {
-    await sendEmail(emails.reminder(b, 24));
-    await prisma.booking.update({ where: { id: b.id }, data: { reminder24SentAt: new Date() } });
-    out.reminders24++;
+    // Claim first so overlapping cron runs can't double-send; release the claim if sending failed.
+    const claim = await prisma.booking.updateMany({ where: { id: b.id, reminder24SentAt: null }, data: { reminder24SentAt: new Date() } });
+    if (claim.count !== 1) continue;
+    if (await sendEmail(emails.reminder(b, 24))) out.reminders24++;
+    else await prisma.booking.update({ where: { id: b.id }, data: { reminder24SentAt: null } });
   }
 
   const due2 = await prisma.booking.findMany({
@@ -42,9 +44,10 @@ export async function GET(req: NextRequest) {
     take: 50,
   });
   for (const b of due2) {
-    await sendEmail(emails.reminder(b, 2));
-    await prisma.booking.update({ where: { id: b.id }, data: { reminder2SentAt: new Date() } });
-    out.reminders2++;
+    const claim = await prisma.booking.updateMany({ where: { id: b.id, reminder2SentAt: null }, data: { reminder2SentAt: new Date() } });
+    if (claim.count !== 1) continue;
+    if (await sendEmail(emails.reminder(b, 2))) out.reminders2++;
+    else await prisma.booking.update({ where: { id: b.id }, data: { reminder2SentAt: null } });
   }
 
   const done = await prisma.booking.updateMany({ where: { status: "CONFIRMED", endsAt: { lt: new Date(now - 6 * H) } }, data: { status: "COMPLETED" } });
@@ -59,16 +62,15 @@ export async function GET(req: NextRequest) {
   // Only ask once per customer every 60 days.
   for (const b of toReview) {
     const recent = await prisma.booking.count({ where: { customerEmail: b.customerEmail, reviewRequestSentAt: { gt: new Date(now - 60 * 24 * H) } } });
-    if (!recent) {
-      await sendEmail(emails.reviewRequest(b, reviewUrl));
-      out.reviews++;
-    }
-    await prisma.booking.update({ where: { id: b.id }, data: { reviewRequestSentAt: new Date() } });
+    const claim = await prisma.booking.updateMany({ where: { id: b.id, reviewRequestSentAt: null }, data: { reviewRequestSentAt: new Date() } });
+    if (claim.count !== 1 || recent) continue;
+    if (await sendEmail(emails.reviewRequest(b, reviewUrl))) out.reviews++;
   }
 
   const unsynced = await prisma.booking.findMany({
     where: { calendarSync: { in: ["FAILED", "PENDING"] }, updatedAt: { lt: new Date(now - 2 * 60_000) } },
     select: { id: true },
+    orderBy: { updatedAt: "asc" }, // oldest first, so one stubborn booking can't block the rest
     take: 20,
   });
   for (const b of unsynced) {

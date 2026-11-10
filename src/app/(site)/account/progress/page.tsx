@@ -25,9 +25,9 @@ export default async function ProgressPage() {
             const v = latest.get(s.key) ?? 0;
             return (
               <li key={s.key}>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between gap-3 text-sm">
                   <span className="font-semibold">{v >= 5 ? "✅ " : ""}{s.label}</span>
-                  <span className="text-muted">{v ? RATING_LABELS[v] : "Not started"}</span>
+                  <span className="shrink-0 text-muted">{v ? RATING_LABELS[v] : "Not started"}</span>
                 </div>
                 <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-surface" role="progressbar" aria-label={s.label} aria-valuemin={0} aria-valuemax={5} aria-valuenow={v}>
                   <div className={`h-full rounded-full ${v >= 4 ? "bg-ok" : v >= 2 ? "bg-accent" : "bg-brand-200"}`} style={{ width: `${(v / 5) * 100}%` }} />
@@ -37,14 +37,14 @@ export default async function ProgressPage() {
           })}
         </ul>
       </section>
-      <section className="card h-fit" aria-labelledby="nt">
+      <section className="card h-fit lg:sticky lg:top-24" aria-labelledby="nt">
         <h2 id="nt" className="text-xl font-bold">Instructor notes</h2>
         {notes.length === 0 ? (
           <p className="mt-2 text-sm text-muted">Notes from your lessons will appear here.</p>
         ) : (
-          <ul className="mt-3 space-y-4">
+          <ul className="mt-3 divide-y divide-line">
             {notes.map((n) => (
-              <li key={n.id} className="text-sm">
+              <li key={n.id} className="py-3 text-sm first:pt-0 last:pb-0">
                 <p className="font-semibold">{fmtDate(n.startsAt)}</p>
                 <p className="whitespace-pre-line text-muted">{n.instructorNotes}</p>
               </li>

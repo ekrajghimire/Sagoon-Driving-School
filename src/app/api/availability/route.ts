@@ -22,9 +22,9 @@ export async function GET(req: NextRequest) {
     {
       date,
       calendarOk,
-      slots: slots.map((s) => ({ startMin: s.startMin, label: s.label, start: s.start.toISOString() })),
+      slots: slots.map((s) => ({ startMin: s.startMin, label: s.label, range: s.range, start: s.start.toISOString() })),
       // All times in working hours; unavailable ones are shown dimmed. Says only "taken", never by whom.
-      grid: grid.map((s) => ({ startMin: s.startMin, label: s.label, available: s.available, reason: s.reason })),
+      grid: grid.map((s) => ({ startMin: s.startMin, label: s.label, range: s.range, available: s.available, reason: s.reason })),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

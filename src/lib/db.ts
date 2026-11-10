@@ -14,7 +14,11 @@ export const prisma = globalForPrisma.prisma ?? createClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export async function getSettings() {
-  return prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1, suburbs: ["Rockdale"] } });
+  // Read first; only write when the row is missing (fresh database).
+  return (
+    (await prisma.settings.findUnique({ where: { id: 1 } })) ??
+    prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1, suburbs: ["Rockdale"] } })
+  );
 }
 
 export async function getInstructor() {

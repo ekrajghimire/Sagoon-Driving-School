@@ -6,7 +6,7 @@ import { prisma } from "./db";
 import { SITE, usableUrl } from "./site";
 
 const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-const ownerEmails = (process.env.OWNER_EMAIL ?? "")
+export const ownerEmails = (process.env.OWNER_EMAIL ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -37,9 +37,11 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // The owner's email(s) automatically get the OWNER role on sign-up.
+        // The owner role is only given automatically when Google has verified the address
+        // ("Continue with Google"). A plain email + password sign-up can't prove who owns the
+        // address, so it starts as CUSTOMER and the owner claims access at /owner-setup.
         before: async (user) => {
-          const role = ownerEmails.includes(user.email.toLowerCase()) ? "OWNER" : "CUSTOMER";
+          const role = user.emailVerified && ownerEmails.includes(user.email.toLowerCase()) ? "OWNER" : "CUSTOMER";
           return { data: { ...user, role, privacyConsentAt: new Date() } };
         },
       },

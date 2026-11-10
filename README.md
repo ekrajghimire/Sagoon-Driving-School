@@ -58,7 +58,7 @@ npm run dev                   # http://localhost:3000
 
 No Postgres installed? `npx prisma dev` starts a free local Postgres; copy its `postgres://…` URL into `DATABASE_URL`. It's fine for clicking around, but it handles only one connection at a time, so for realistic testing use a free Neon "dev" branch.
 
-Register with the email in `OWNER_EMAIL` to get the owner role, then open `/admin`.
+Register with the email in `OWNER_EMAIL`, open `/admin`, and enter the owner setup code (your `CRON_SECRET`) once to unlock it.
 
 ```bash
 npm test            # availability engine unit tests (incl. daylight saving)

@@ -17,7 +17,7 @@ export default async function LessonsPage() {
     <div className="space-y-8">
       <section>
         <h2 className="mb-3 text-xl font-bold">Upcoming</h2>
-        <BookingList items={upcoming} empty={<>Nothing booked. <Link href="/book" className="font-semibold text-brand-700 underline">Book a lesson</Link>.</>} />
+        <BookingList items={upcoming} empty={<>Nothing booked. <Link href="/book" className="link-underline">Book a lesson</Link>.</>} />
       </section>
       <section>
         <h2 className="mb-3 text-xl font-bold">Past & cancelled</h2>
