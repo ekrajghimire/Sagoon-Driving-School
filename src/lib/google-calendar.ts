@@ -17,20 +17,40 @@ import { sydneyDayRange } from "./time";
 
 const BASE = "https://www.googleapis.com/calendar/v3";
 
+const unquote = (s: string) => s.trim().replace(/,$/, "").replace(/^["']|["']$/g, "").trim();
+
+/**
+ * Reads the service-account credentials, forgiving the usual copy-paste variations:
+ * the key with literal "\n" or real line breaks, wrapped in quotes, or the whole JSON key
+ * file pasted into GOOGLE_PRIVATE_KEY (or GOOGLE_SERVICE_ACCOUNT_JSON).
+ */
+function credentials() {
+  let key = process.env.GOOGLE_PRIVATE_KEY ?? "";
+  let email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "";
+  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || (key.trim().startsWith("{") ? key : "");
+  if (json) {
+    try {
+      const j = JSON.parse(json) as { private_key?: string; client_email?: string };
+      key = j.private_key ?? key;
+      email = email || j.client_email || "";
+    } catch {
+      /* fall through with what we have */
+    }
+  }
+  key = unquote(key).replace(/\\n/g, "\n");
+  return { key, email: unquote(email), calendarId: unquote(process.env.GOOGLE_CALENDAR_ID ?? "") };
+}
+
 export function calendarConfigured() {
-  return Boolean(
-    process.env.GOOGLE_CALENDAR_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY,
-  );
+  const c = credentials();
+  return Boolean(c.calendarId && c.email && c.key);
 }
 
 let jwt: JWT | null = null;
 function client() {
   if (!jwt) {
-    jwt = new JWT({
-      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: (process.env.GOOGLE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
-      scopes: ["https://www.googleapis.com/auth/calendar"],
-    });
+    const c = credentials();
+    jwt = new JWT({ email: c.email, key: c.key, scopes: ["https://www.googleapis.com/auth/calendar"] });
   }
   return jwt;
 }
@@ -48,7 +68,7 @@ async function gcal<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const calId = () => encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
+const calId = () => encodeURIComponent(credentials().calendarId);
 
 type GEvent = {
   id: string;
@@ -147,5 +167,35 @@ export async function deleteCalendarEvent(eventId: string) {
     await gcal(`/calendars/${calId()}/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
   } catch (e) {
     if (!String(e).includes(" 404")) throw e;
+  }
+}
+
+/** Owner diagnostics: try reading the calendar and explain any failure in plain English. */
+export async function checkCalendarConnection(): Promise<{ ok: boolean; message: string; detail?: string }> {
+  const c = credentials();
+  const missing = [!c.calendarId && "GOOGLE_CALENDAR_ID", !c.email && "GOOGLE_SERVICE_ACCOUNT_EMAIL", !c.key && "GOOGLE_PRIVATE_KEY"].filter(Boolean);
+  if (missing.length) return { ok: false, message: `Missing on Vercel: ${missing.join(", ")}. Add them, then redeploy.` };
+  if (!c.key.includes("BEGIN PRIVATE KEY") || !c.key.includes("END PRIVATE KEY")) {
+    return { ok: false, message: "GOOGLE_PRIVATE_KEY doesn't look like a private key. Paste the whole private_key value from the JSON file, from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----\\n." };
+  }
+  try {
+    const now = new Date();
+    await getGoogleBusy(now, new Date(now.getTime() + 7 * 86_400_000));
+    return { ok: true, message: `Connected — reading calendar ${c.calendarId} as ${c.email}.` };
+  } catch (e) {
+    const detail = String((e as Error)?.message ?? e).slice(0, 400);
+    const d = detail.toLowerCase();
+    let message = "Google Calendar returned an error.";
+    if (d.includes("decoder") || d.includes("pem") || d.includes("asn1") || d.includes("invalid jwt signature") || d.includes("no key or keyfile"))
+      message = "The private key is in the wrong format or doesn't match the service account. Re-copy private_key from the same JSON file as client_email.";
+    else if (d.includes("invalid_grant") || d.includes("account not found") || d.includes("invalid_client"))
+      message = "Google doesn't recognise the service account. Check GOOGLE_SERVICE_ACCOUNT_EMAIL is the client_email from the JSON file, and that the key hasn't been deleted in Google Cloud.";
+    else if (d.includes("accessnotconfigured") || d.includes("has not been used") || d.includes("is disabled"))
+      message = "The Google Calendar API isn't enabled. In Google Cloud Console → APIs & Services → Library, enable “Google Calendar API” for this project, wait 2 minutes, then retry.";
+    else if (d.includes(" 404") || d.includes("not found"))
+      message = `Calendar “${c.calendarId}” not found for this service account. In Google Calendar → Settings → your calendar → Share with specific people, add ${c.email} with “Make changes to events”, and check GOOGLE_CALENDAR_ID is that calendar's ID.`;
+    else if (d.includes(" 403") || d.includes("forbidden") || d.includes("insufficient"))
+      message = `No permission on the calendar. Share it with ${c.email} and choose “Make changes to events”.`;
+    return { ok: false, message, detail };
   }
 }

@@ -1,6 +1,6 @@
 import { prisma, getSettings, getInstructor } from "@/lib/db";
 import { requireStaff } from "@/lib/session";
-import { calendarConfigured } from "@/lib/google-calendar";
+import { calendarConfigured, checkCalendarConnection } from "@/lib/google-calendar";
 import { OWNER_ONLY } from "../_lib/roles";
 import { PageHeader } from "../_components/PageHeader";
 import { ActionForm } from "../_components/ActionForm";
@@ -24,7 +24,20 @@ function Status({ ok, label, hint }: { ok: boolean; label: string; hint: string 
   );
 }
 
-export default async function SettingsPage() {
+async function CalendarTest() {
+  const r = await checkCalendarConnection();
+  return (
+    <div role="status" className={`mt-3 rounded-xl p-3 text-sm ${r.ok ? "bg-green-50 text-ok" : "bg-red-50 text-danger"}`}>
+      <p className="font-semibold">{r.ok ? "✓ Google Calendar test passed" : "✗ Google Calendar test failed"}</p>
+      <p className="mt-1 text-ink">{r.message}</p>
+      {r.detail && <p className="mt-2 break-all font-mono text-xs text-muted">Google said: {r.detail}</p>}
+      <a href="/admin/settings?testCalendar=1#int-h" className="btn-outline btn-sm mt-3">Test again</a>
+    </div>
+  );
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ testCalendar?: string }> }) {
+  const { testCalendar } = await searchParams;
   await requireStaff(OWNER_ONLY);
   const [s, instructor, vehicle] = await Promise.all([getSettings(), getInstructor(), prisma.vehicle.findFirst({ where: { active: true } })]);
 
@@ -42,6 +55,11 @@ export default async function SettingsPage() {
           <Status ok={has("OWNER_EMAIL")} label="Owner notifications" hint="OWNER_EMAIL — receives new booking & enquiry emails" />
         </ul>
         <p className="mt-2 text-xs text-muted">Secrets are set in your hosting provider&apos;s environment variables and are never shown here.</p>
+        {testCalendar ? (
+          <CalendarTest />
+        ) : (
+          <a href="/admin/settings?testCalendar=1#int-h" className="btn-brand btn-sm mt-3">Test Google Calendar connection</a>
+        )}
       </section>
 
       <section className="card mt-4" aria-labelledby="biz-h">
