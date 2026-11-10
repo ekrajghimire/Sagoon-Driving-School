@@ -1,0 +1,18 @@
+# Free scheduler: calls the site's /api/cron endpoint every 15 minutes to send
+# lesson reminders, review requests and retry Google Calendar syncs.
+# Setup: GitHub repo → Settings → Secrets and variables → Actions → add
+#   SITE_URL     e.g. https://www.sagoondrivingschool.com.au   (no trailing slash)
+#   CRON_SECRET  same value as the CRON_SECRET environment variable on your host
+name: Scheduled jobs
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run reminders and calendar sync
+        run: |
+          curl -fsS --max-time 90 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.SITE_URL }}/api/cron"

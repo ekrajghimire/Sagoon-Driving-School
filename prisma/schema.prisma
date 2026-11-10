@@ -1,0 +1,425 @@
+// Sagoon Driving School — database schema (PostgreSQL, Prisma 7)
+// All timestamps are stored in UTC. Business logic converts to Australia/Sydney.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────── Auth (Better Auth) ───────────────────────────
+
+enum Role {
+  OWNER
+  STAFF
+  INSTRUCTOR
+  CUSTOMER
+}
+
+model User {
+  id               String    @id
+  name             String
+  email            String    @unique
+  emailVerified    Boolean   @default(false)
+  image            String?
+  role             Role      @default(CUSTOMER)
+  phone            String?
+  licenceNumber    String?
+  licenceType      String? // e.g. "Learner (L)", "Overseas licence"
+  testDate         DateTime?
+  marketingOptIn   Boolean   @default(false)
+  privacyConsentAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sessions       Session[]
+  accounts       Account[]
+  bookings       Booking[]
+  purchases      PackagePurchase[]
+  addresses      SavedAddress[]
+  skillRatings   SkillRating[]
+  waitlist       WaitlistEntry[]
+  instructor     Instructor?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─────────────────────────── Business configuration ───────────────────────────
+
+// Single row (id = 1). Edited from Admin → Settings.
+model Settings {
+  id                      Int      @id @default(1)
+  businessName            String   @default("Sagoon Driving School")
+  phone                   String   @default("0451 634 722")
+  email                   String   @default("hello@sagoondrivingschool.com.au")
+  address                 String   @default("Rockdale NSW 2216")
+  abn                     String   @default("00 000 000 000")
+  gstRegistered           Boolean  @default(true)
+  suburbs                 String[]
+  allowedDurations        Int[]    @default([60, 90, 120])
+  slotIntervalMins        Int      @default(30)
+  travelBufferMins        Int      @default(15)
+  minNoticeHours          Int      @default(12)
+  maxAdvanceDays          Int      @default(60)
+  cancellationWindowHours Int      @default(24)
+  paymentInstructions     String   @default("Pay by cash, card or PayID at the start of your lesson, or by bank transfer before the lesson.")
+  payId                   String   @default("")
+  googleReviewsUrl        String   @default("")
+  whatsappNumber          String   @default("61451634722")
+  statPassRate            String   @default("") // e.g. "92%" — only show real numbers
+  statStudents            String   @default("") // e.g. "300+"
+  announcement            String   @default("") // optional banner text
+  updatedAt               DateTime @updatedAt
+}
+
+model Instructor {
+  id            String         @id @default(cuid())
+  name          String
+  bio           String
+  photoUrl      String?
+  accreditation String // e.g. "NSW Driving Instructor Licence #XXXX"
+  languages     String[]
+  active        Boolean        @default(true)
+  userId        String?        @unique
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workingHours  WorkingHours[]
+  bookings      Booking[]
+  createdAt     DateTime       @default(now())
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  name         String // "Toyota Corolla Hybrid 2023"
+  transmission String   @default("Automatic")
+  features     String[]
+  photoUrl     String?
+  active       Boolean  @default(true)
+}
+
+// Weekly working pattern, minutes from local midnight (Australia/Sydney).
+model WorkingHours {
+  id           String     @id @default(cuid())
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  weekday      Int // 0 = Sunday … 6 = Saturday
+  startMin     Int // 420 = 07:00
+  endMin       Int // 1140 = 19:00
+
+  @@index([instructorId, weekday])
+}
+
+model BlockedTime {
+  id        String   @id @default(cuid())
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([startsAt, endsAt])
+}
+
+model PublicHoliday {
+  id   String @id @default(cuid())
+  date String @unique // YYYY-MM-DD (Sydney)
+  name String
+}
+
+// ─────────────────────────── Products ───────────────────────────
+
+enum LessonKind {
+  LESSON
+  TEST_PACKAGE
+  REFRESHER
+  CONFIDENCE
+}
+
+model LessonType {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  description  String
+  kind         LessonKind @default(LESSON)
+  durationMins Int
+  priceCents   Int // GST-inclusive
+  popular      Boolean    @default(false)
+  active       Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  bookings     Booking[]
+}
+
+model Package {
+  id                 String            @id @default(cuid())
+  slug               String            @unique
+  name               String
+  description        String
+  lessonCount        Int
+  lessonDurationMins Int               @default(60)
+  priceCents         Int // GST-inclusive
+  features           String[]
+  includesTest       Boolean           @default(false)
+  popular            Boolean           @default(false)
+  active             Boolean           @default(true)
+  sortOrder          Int               @default(0)
+  purchases          PackagePurchase[]
+}
+
+enum PurchaseStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+model PackagePurchase {
+  id            String         @id @default(cuid())
+  ref           String         @unique
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId     String
+  package       Package        @relation(fields: [packageId], references: [id])
+  priceCents    Int
+  discountCents Int            @default(0)
+  creditsTotal  Int
+  creditsUsed   Int            @default(0)
+  status        PurchaseStatus @default(PENDING_PAYMENT)
+  paymentMethod String?
+  paidAt        DateTime?
+  promoCodeId   String?
+  promoCode     PromoCode?     @relation(fields: [promoCodeId], references: [id])
+  bookings      Booking[]
+  createdAt     DateTime       @default(now())
+
+  @@index([userId])
+}
+
+enum PromoKind {
+  PERCENT
+  FIXED
+}
+
+model PromoCode {
+  id            String            @id @default(cuid())
+  code          String            @unique
+  description   String            @default("")
+  kind          PromoKind         @default(PERCENT)
+  value         Int // percent (10 = 10%) or cents
+  maxUses       Int?
+  uses          Int               @default(0)
+  expiresAt     DateTime?
+  isGiftVoucher Boolean           @default(false)
+  active        Boolean           @default(true)
+  bookings      Booking[]
+  purchases     PackagePurchase[]
+  createdAt     DateTime          @default(now())
+}
+
+// ─────────────────────────── Bookings ───────────────────────────
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  CREDIT // paid with a package credit
+  REFUNDED
+  FREE
+}
+
+enum CalendarSync {
+  NOT_CONFIGURED
+  PENDING
+  SYNCED
+  FAILED
+}
+
+model Booking {
+  id                  String           @id @default(cuid())
+  ref                 String           @unique // short human code, e.g. SDS-7K2Q9
+  manageToken         String           @unique // lets guests manage via emailed link
+  userId              String?
+  user                User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName        String
+  customerEmail       String
+  customerPhone       String
+  lessonTypeId        String?
+  lessonType          LessonType?      @relation(fields: [lessonTypeId], references: [id])
+  title               String // snapshot of lesson name at booking time
+  packagePurchaseId   String?
+  packagePurchase     PackagePurchase? @relation(fields: [packagePurchaseId], references: [id])
+  instructorId        String
+  instructor          Instructor       @relation(fields: [instructorId], references: [id])
+  startsAt            DateTime
+  endsAt              DateTime
+  durationMins        Int
+  pickupAddress       String
+  pickupSuburb        String
+  customerNotes       String?
+  status              BookingStatus    @default(CONFIRMED)
+  priceCents          Int
+  discountCents       Int              @default(0)
+  promoCodeId         String?
+  promoCode           PromoCode?       @relation(fields: [promoCodeId], references: [id])
+  paymentStatus       PaymentStatus    @default(UNPAID)
+  paymentMethod       String?
+  paidAt              DateTime?
+  googleEventId       String?
+  calendarSync        CalendarSync     @default(PENDING)
+  calendarError       String?
+  reminder24SentAt    DateTime?
+  reminder2SentAt     DateTime?
+  reviewRequestSentAt DateTime?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  instructorNotes     String?
+  createdByStaff      Boolean          @default(false)
+  skillRatings        SkillRating[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([startsAt, endsAt])
+  @@index([status, startsAt])
+  @@index([userId])
+}
+
+model SkillRating {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill     String // key from SKILLS list
+  rating    Int // 1–5
+  createdAt DateTime @default(now())
+
+  @@unique([bookingId, skill])
+  @@index([userId])
+}
+
+model WaitlistEntry {
+  id         String    @id @default(cuid())
+  date       String // YYYY-MM-DD (Sydney)
+  name       String
+  email      String
+  phone      String
+  notes      String?
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([date])
+}
+
+model SavedAddress {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label   String
+  address String
+  suburb  String
+}
+
+// ─────────────────────────── Content ───────────────────────────
+
+model Post {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String
+  content     String // simple Markdown
+  category    String
+  published   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  readMins    Int       @default(4)
+  updatedAt   DateTime  @updatedAt
+}
+
+model Faq {
+  id        String  @id @default(cuid())
+  question  String
+  answer    String
+  category  String  @default("General")
+  sortOrder Int     @default(0)
+  published Boolean @default(true)
+}
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  suburb    String
+  rating    Int      @default(5)
+  quote     String
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  consentAt DateTime @default(now())
+}

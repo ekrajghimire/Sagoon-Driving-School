@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #0f2a43;
+  --color-muted: #55708a;
+  --color-line: #dbe4ee;
+  --color-surface: #f4f7fb;
+  --color-brand-50: #eef6fc;
+  --color-brand-100: #d6eaf8;
+  --color-brand-200: #a9d2f0;
+  --color-brand-500: #1677b8;
+  --color-brand-600: #0e639c;
+  --color-brand-700: #0b4f7c;
+  --color-brand-800: #0a3f63;
+  --color-brand-900: #082f4a;
+  --color-accent: #facc15; /* L-plate yellow */
+  --color-accent-600: #eab308;
+  --color-ok: #15803d;
+  --color-danger: #b91c1c;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-white text-ink antialiased;
+}
+
+/* Visible keyboard focus everywhere (WCAG 2.4.7) */
+:focus-visible {
+  outline: 3px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@utility container-x { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
+@utility btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60; }
+@utility btn-primary { @apply btn bg-accent text-ink shadow-sm hover:bg-accent-600; }
+@utility btn-brand { @apply btn bg-brand-700 text-white hover:bg-brand-800; }
+@utility btn-outline { @apply btn border border-line bg-white text-ink hover:border-brand-500 hover:text-brand-700; }
+@utility btn-ghost { @apply btn text-brand-700 hover:bg-brand-50; }
+@utility btn-danger { @apply btn border border-red-200 bg-white text-danger hover:bg-red-50; }
+@utility btn-sm { @apply min-h-9 rounded-lg px-3 py-1.5 text-sm; }
+@utility card { @apply rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6; }
+@utility label { @apply mb-1 block text-sm font-semibold text-ink; }
+@utility input { @apply block min-h-11 w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-base text-ink placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200; }
+@utility help { @apply mt-1 text-sm text-muted; }
+@utility badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+@utility eyebrow { @apply text-sm font-bold uppercase tracking-wider text-brand-600; }
+@utility h1 { @apply text-3xl font-extrabold tracking-tight sm:text-5xl; }
+@utility h2 { @apply text-2xl font-extrabold tracking-tight sm:text-3xl; }
+@utility table-x { @apply w-full text-left text-sm; }
+.table-x th { @apply border-b border-line px-3 py-2 font-semibold text-muted; }
+.table-x td { @apply border-b border-line px-3 py-2 align-top; }
+
+/* Long-form article typography (resources / legal pages) */
+.prose-x { @apply max-w-none text-[1.05rem] leading-relaxed text-ink; }
+.prose-x h2 { @apply mt-8 mb-3 text-2xl font-bold; }
+.prose-x h3 { @apply mt-6 mb-2 text-xl font-bold; }
+.prose-x h4 { @apply mt-4 mb-2 font-bold; }
+.prose-x p { @apply my-3; }
+.prose-x ul { @apply my-3 list-disc space-y-1 pl-6; }
+.prose-x ol { @apply my-3 list-decimal space-y-1 pl-6; }
+.prose-x a { @apply font-semibold text-brand-700 underline underline-offset-2; }
+.prose-x blockquote { @apply my-4 rounded-r-xl border-l-4 border-accent bg-amber-50 px-4 py-3 text-sm; }
+.prose-x strong { @apply font-bold; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
