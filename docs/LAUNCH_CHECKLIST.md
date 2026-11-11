@@ -12,7 +12,7 @@ Tick each item before telling customers about the site.
 - [ ] Test: make a booking, see it appear in Google Calendar; add a Busy event, see that time disappear from `/book`
 - [ ] Gmail App Password created; `SMTP_*`, `EMAIL_FROM` set; test booking confirmation arrives (check spam)
 - [ ] (Optional) Google login OAuth client; redirect URI `https://YOUR-DOMAIN/api/auth/callback/google`
-- [ ] `CRON_SECRET` set on host **and** as a GitHub Actions secret, with `SITE_URL`; "Scheduled jobs" workflow run is green
+- [ ] `CRON_SECRET` set on Vercel; cron-job.org calls `/api/cron` every 15 min with header `Authorization: Bearer <CRON_SECRET>` and its test run shows 200 OK
 - [ ] (Optional) `NEXT_PUBLIC_GA_ID` / `NEXT_PUBLIC_FB_PIXEL_ID`
 
 ## Hosting & domain

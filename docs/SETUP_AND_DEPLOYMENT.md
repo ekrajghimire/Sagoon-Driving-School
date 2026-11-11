@@ -102,17 +102,19 @@ The app is a standard Next.js app and runs on any Node host.
 
 On Vercel the site works out its own address (your custom domain once added, otherwise `*.vercel.app`). On other hosts, set `NEXT_PUBLIC_SITE_URL` to your `https://` domain and redeploy.
 
-## 7. Scheduled jobs (reminders) — GitHub Actions (free)
+## 7. Scheduled jobs (reminders) — cron-job.org (free)
 
-`/api/cron` sends reminders, marks finished lessons complete, emails review requests and retries calendar syncs. It's triggered every 15 minutes by `.github/workflows/cron.yml`.
+`/api/cron` sends reminders, marks finished lessons complete, emails review requests and retries calendar syncs. Something outside the site has to call it every 15 minutes. **cron-job.org** does this for free and doesn't depend on your GitHub account.
 
-1. Pick a long random `CRON_SECRET` (e.g. `openssl rand -hex 32`) and add it to your host's environment variables.
-2. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
-   - `CRON_SECRET`: the same value
-   - `SITE_URL`: `https://YOUR-DOMAIN`
-3. **Actions** tab → "Scheduled jobs" → **Run workflow** once to test (it should go green).
+1. Pick a long random `CRON_SECRET` (e.g. `openssl rand -hex 32`), add it to Vercel's environment variables and redeploy.
+2. Sign up at **cron-job.org** (free) → **Create cronjob**:
+   - **URL:** `https://YOUR-DOMAIN/api/cron`
+   - **Schedule:** every 15 minutes
+   - **Advanced → Headers → Add:** key `Authorization`, value `Bearer YOUR_CRON_SECRET` (the word Bearer, a space, then the secret)
+   - **Save**, then **Test run**. It should show **200 OK** with `{"ok":true,…}`.
+     - 401 = the header is wrong or doesn't match Vercel's `CRON_SECRET`.
 
-GitHub may delay scheduled runs by a few minutes at busy times. That's fine for reminders. `vercel.json` also schedules a once-daily backup run on Vercel.
+Backups: `vercel.json` runs it once a day on Vercel, and `.github/workflows/cron.yml` can be triggered by hand from GitHub's Actions tab (needs repo secrets `SITE_URL` and `CRON_SECRET`).
 
 ## 8. Create your owner account
 
