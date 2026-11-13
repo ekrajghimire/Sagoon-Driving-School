@@ -12,6 +12,18 @@ Log in at **/login** with your owner email, then go to **/admin** (or **My accou
 
 To become Owner, register with the email in `OWNER_EMAIL`, then open `/admin`. You'll be asked once for your **owner setup code**, which is the `CRON_SECRET` value from Vercel. (Signing in with "Continue with Google" skips this, because Google has already confirmed the email is yours.) This stops a stranger from typing your email into the sign-up form and taking over the admin. Promote other people in **Users** after they create an account.
 
+## Phone app & new-booking alerts
+
+Put the admin on your phone's home screen and get a notification for every online booking, customer cancellation or reschedule, and website enquiry. Tapping the alert opens that booking. It's free.
+
+1. On your phone, log in and open **Admin → More → Phone app & alerts**.
+2. **Add to home screen**
+   - **iPhone (iOS 16.4+):** open the site in **Safari** → Share → **Add to Home Screen** → Add. Then open **Sagoon Admin** from the home screen. Alerts only work from the installed app on iPhone.
+   - **Android:** tap **Install app**, or Chrome ⋮ → **Add to Home screen**.
+3. Tap **Turn on alerts**, allow notifications, and you'll get a test alert.
+
+Turn alerts on separately on each device you want pinged. Bookings you add yourself in the admin don't alert you. If alerts stop, check Focus / Do Not Disturb, then use **Send a test alert** on that page.
+
 ## Daily routine
 
 1. **Today** (`/admin`): today's and tomorrow's lessons with the student's phone (tap to call), pickup address (tap for Google Maps), notes and payment status.

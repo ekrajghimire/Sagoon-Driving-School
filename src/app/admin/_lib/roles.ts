@@ -14,6 +14,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/content", label: "Content", roles: ADMINS },
   { href: "/admin/inbox", label: "Inbox", roles: ADMINS },
   { href: "/admin/reports", label: "Reports", roles: ADMINS },
+  { href: "/admin/app", label: "Phone app & alerts", roles: ALL_STAFF },
   { href: "/admin/settings", label: "Settings", roles: OWNER_ONLY },
   { href: "/admin/users", label: "Users & roles", roles: OWNER_ONLY },
 ];

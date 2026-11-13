@@ -3,9 +3,17 @@ import { prisma } from "@/lib/db";
 import { requireStaff, isOwnerOrAdmin } from "@/lib/session";
 import { ADMIN_NAV } from "./_lib/roles";
 import { AdminNav } from "./_components/AdminNav";
+import { RegisterServiceWorker } from "./_components/RegisterServiceWorker";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: { default: "Admin", template: "%s · Admin" }, robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: { default: "Admin", template: "%s · Admin" },
+  robots: { index: false, follow: false },
+  // Installable "Sagoon Admin" app (Add to Home Screen) with its own icon.
+  manifest: "/admin.webmanifest",
+  appleWebApp: { capable: true, title: "Sagoon Admin", statusBarStyle: "default" },
+  icons: { apple: [{ url: "/icons/180", sizes: "180x180", type: "image/png" }] },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
@@ -14,6 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     // On phones/tablets every small button and input grows to a 44px tap target.
     <div className="flex min-h-screen flex-col bg-white max-lg:[&_.btn-sm]:min-h-11 max-lg:[&_.input]:min-h-11 lg:flex-row">
+      <RegisterServiceWorker />
       <AdminNav items={items} userName={user.name} role={user.role} inboxCount={inboxCount} />
       <main id="main" className="min-w-0 flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto max-w-6xl">{children}</div>

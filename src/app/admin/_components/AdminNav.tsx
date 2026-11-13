@@ -16,6 +16,7 @@ import {
   ChartColumn,
   Settings,
   UserCog,
+  BellRing,
   Ellipsis,
   X,
   type LucideIcon,
@@ -34,6 +35,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/admin/inbox": Inbox,
   "/admin/reports": ChartColumn,
   "/admin/settings": Settings,
+  "/admin/app": BellRing,
   "/admin/users": UserCog,
 };
 

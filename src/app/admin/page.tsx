@@ -8,6 +8,7 @@ import { aud } from "@/lib/money";
 import { ALL_STAFF } from "./_lib/roles";
 import { weekRange } from "./_lib/dates";
 import { PageHeader, Kpi, EmptyState, SectionTitle } from "./_components/PageHeader";
+import { AlertsNudge } from "./_components/AlertsNudge";
 import { LessonCard } from "./_components/LessonCard";
 import { RetryAllButton } from "./_components/RetryAllButton";
 import { LessonQuickActions } from "./_components/LessonQuickActions";
@@ -59,6 +60,7 @@ export default async function AdminToday() {
 
   return (
     <>
+      <AlertsNudge />
       <PageHeader title={`G'day, ${user.name.split(" ")[0]}`} subtitle={fmtDate(now)}>
         {isAdmin && (
           <Link href="/admin/bookings/new" className="btn-primary btn-sm">

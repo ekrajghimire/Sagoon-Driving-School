@@ -35,14 +35,15 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  sessions       Session[]
-  accounts       Account[]
-  bookings       Booking[]
-  purchases      PackagePurchase[]
-  addresses      SavedAddress[]
-  skillRatings   SkillRating[]
-  waitlist       WaitlistEntry[]
-  instructor     Instructor?
+  sessions          Session[]
+  accounts          Account[]
+  bookings          Booking[]
+  purchases         PackagePurchase[]
+  addresses         SavedAddress[]
+  skillRatings      SkillRating[]
+  waitlist          WaitlistEntry[]
+  pushSubscriptions PushSubscription[]
+  instructor        Instructor?
 
   @@map("user")
 }
@@ -119,6 +120,9 @@ model Settings {
   statPassRate            String   @default("") // e.g. "92%" — only show real numbers
   statStudents            String   @default("") // e.g. "300+"
   announcement            String   @default("") // optional banner text
+  // Web Push keys for phone alerts — generated automatically on first use, never shown.
+  vapidPublicKey          String?
+  vapidPrivateKey         String?
   updatedAt               DateTime @updatedAt
 }
 
@@ -379,16 +383,16 @@ model SavedAddress {
 // ─────────────────────────── Content ───────────────────────────
 
 model Post {
-  id          String    @id @default(cuid())
-  slug        String    @unique
+  id          String   @id @default(cuid())
+  slug        String   @unique
   title       String
   excerpt     String
   content     String // simple Markdown
   category    String
-  published   Boolean   @default(true)
-  publishedAt DateTime  @default(now())
-  readMins    Int       @default(4)
-  updatedAt   DateTime  @updatedAt
+  published   Boolean  @default(true)
+  publishedAt DateTime @default(now())
+  readMins    Int      @default(4)
+  updatedAt   DateTime @updatedAt
 }
 
 model Faq {
@@ -424,4 +428,19 @@ model NewsletterSubscriber {
   id        String   @id @default(cuid())
   email     String   @unique
   consentAt DateTime @default(now())
+}
+
+// A phone/computer where a staff member turned on new-booking alerts (Web Push).
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  device     String    @default("") // e.g. "iPhone", "Android", "Mac"
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }

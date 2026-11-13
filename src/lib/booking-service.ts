@@ -3,12 +3,16 @@ import { after } from "next/server";
 import { prisma, getSettings, getInstructor } from "./db";
 import { Prisma } from "@/generated/prisma/client";
 import { generateSlots, generateSlotGrid, workingHoursFor, type BusyInterval, type Slot, type GridSlot } from "./availability";
-import { sydneyDayRange, sydneyToUtc, todaySydney, addDays, fmtDate, fmtTime } from "./time";
+import { sydneyDayRange, sydneyToUtc, todaySydney, addDays, fmtDate, fmtTime, fmtRange, fmtSydney } from "./time";
 import { calendarConfigured, getGoogleBusy, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { sendEmail, emails } from "./email";
 import { applyPromo } from "./money";
 import { splitParts, mergeIntoBlocks, SPLIT_UNIT_MINS, type PickedSlot, type Block } from "./lesson-parts";
 import { shortRef, secretToken } from "./ids";
+import { notifyStaff } from "./push";
+
+/** "Wed 18 Nov · 7:00 AM – 8:00 AM" */
+const when = (b: { startsAt: Date; endsAt: Date }) => `${fmtSydney(b.startsAt, "EEE d MMM")} · ${fmtRange(b.startsAt, b.endsAt)}`;
 
 /** Every booking write is serialised with this Postgres advisory lock (one instructor, one car). */
 const BOOKING_LOCK_KEY = 72_466_001;
@@ -381,6 +385,15 @@ export async function createBookingGroup(input: CreateBookingInput) {
     for (const b of bookings) await syncToCalendar(b.id);
     await sendEmail(emails.confirmation(bookings, settings.cancellationWindowHours));
     if (process.env.OWNER_EMAIL) await sendEmail(emails.ownerNewBooking(bookings, process.env.OWNER_EMAIL));
+    if (!input.createdByStaff) {
+      const first = bookings[0];
+      await notifyStaff({
+        title: `New booking: ${first.customerName}`,
+        body: [bookings.map(when).join("  +  "), `${title} · ${first.pickupSuburb}`].join("\n"),
+        url: `/admin/bookings/${first.id}`,
+        tag: `booking-${first.groupRef ?? first.id}`,
+      });
+    }
   });
   return bookings;
 }
@@ -465,6 +478,14 @@ export async function cancelBooking(bookingId: string, opts: { byStaff?: boolean
     await syncToCalendar(b.id);
     await sendEmail(emails.cancelled(updated, opts.reason));
     await notifyWaitlist(b.startsAt);
+    if (!opts.byStaff) {
+      await notifyStaff({
+        title: `Cancelled: ${b.customerName}`,
+        body: `${when(b)}\n${b.title}${opts.reason ? ` — “${opts.reason}”` : ""}`,
+        url: `/admin/bookings/${b.id}`,
+        tag: `booking-${b.id}`,
+      });
+    }
   });
   return updated;
 }
@@ -512,6 +533,14 @@ export async function rescheduleBooking(bookingId: string, date: string, startMi
     await syncToCalendar(b.id);
     await sendEmail(emails.rescheduled(updated, b.startsAt));
     await notifyWaitlist(b.startsAt);
+    if (!opts.byStaff) {
+      await notifyStaff({
+        title: `Moved: ${b.customerName}`,
+        body: `Now ${when(updated)}\nWas ${when(b)}`,
+        url: `/admin/bookings/${b.id}`,
+        tag: `booking-${b.id}`,
+      });
+    }
   });
   return updated;
 }

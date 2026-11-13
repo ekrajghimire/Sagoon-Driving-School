@@ -25,7 +25,18 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The admin app's service worker must always be fresh so alert fixes reach phones quickly.
+      {
+        source: "/admin-sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+      { source: "/admin.webmanifest", headers: [{ key: "Content-Type", value: "application/manifest+json" }] },
+    ];
   },
 };
 

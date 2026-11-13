@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendEmail, emails } from "@/lib/email";
+import { notifyStaff } from "@/lib/push";
 import { getCurrentUser } from "@/lib/session";
 import { isIsoDate } from "@/lib/time";
 
@@ -34,6 +35,7 @@ export async function sendContact(_: FormState, fd: FormData): Promise<FormState
   if (process.env.OWNER_EMAIL) {
     await sendEmail(emails.generic(process.env.OWNER_EMAIL, `Website enquiry from ${name}`, "New enquiry", [`From: ${name} <${email}> ${phone ?? ""}`, message]));
   }
+  await notifyStaff({ title: `New enquiry: ${name}`, body: message.slice(0, 140), url: "/admin/inbox", tag: "enquiry" });
   return { ok: true, message: "Thanks — we'll get back to you within one business day." };
 }
 
