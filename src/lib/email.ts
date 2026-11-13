@@ -258,3 +258,34 @@ ${button(manageUrl(b), "View, reschedule or cancel")}
     };
   },
 };
+
+/** Owner diagnostics: log in to the mail server and send a real test email. Explains failures in plain English. */
+export async function testEmailSetup(to: string): Promise<{ ok: boolean; message: string; detail?: string }> {
+  const missing = ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"].filter((k) => !process.env[k]);
+  if (missing.length) {
+    return { ok: false, message: `Email isn't set up, so no emails are being sent. Add ${missing.join(", ")} (and SMTP_PORT=465, EMAIL_FROM) in Vercel → Settings → Environment Variables, then redeploy.` };
+  }
+  if (!to) return { ok: false, message: "OWNER_EMAIL isn't set in Vercel, so there's nowhere to send the test (and you won't get new-booking emails)." };
+  try {
+    await tx().verify();
+    await tx().sendMail({
+      from: process.env.EMAIL_FROM ?? `${SITE.name} <${process.env.SMTP_USER}>`,
+      to,
+      subject: `✅ Test email from ${SITE.name}`,
+      text: "Email sending works. Booking confirmations, reminders and new-booking notices will arrive like this.",
+    });
+    return { ok: true, message: `Test email sent to ${to}. Check your inbox (and Spam the first time).` };
+  } catch (e) {
+    const err = e as { code?: string; responseCode?: number; message?: string };
+    const detail = `${err.code ?? ""} ${err.responseCode ?? ""} ${err.message ?? e}`.trim().slice(0, 300);
+    let message = "The mail server refused the email.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || /auth|credentials|password/i.test(err.message ?? ""))
+      message =
+        "Gmail rejected the login. SMTP_USER must be your full Gmail address and SMTP_PASS a 16-letter App Password (from myaccount.google.com/apppasswords, typed without spaces), not your normal Gmail password. 2-Step Verification must be on.";
+    else if (["ENOTFOUND", "ECONNECTION", "ETIMEDOUT", "ECONNREFUSED", "ESOCKET"].includes(err.code ?? ""))
+      message = "Couldn't reach the mail server. For Gmail use SMTP_HOST=smtp.gmail.com and SMTP_PORT=465.";
+    else if (/sender|from address|not owned/i.test(err.message ?? ""))
+      message = "EMAIL_FROM must use the same address as SMTP_USER, e.g. Sagoon Driving School <you@gmail.com>.";
+    return { ok: false, message, detail };
+  }
+}

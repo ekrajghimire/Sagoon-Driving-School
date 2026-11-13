@@ -221,3 +221,32 @@ export async function checkCalendarConnection(): Promise<{ ok: boolean; message:
     return { ok: false, message, detail };
   }
 }
+
+/** Owner diagnostics: after a successful read, create and delete a test event to prove the site can WRITE. */
+export async function checkCalendarWrite(): Promise<{ ok: boolean; message: string; detail?: string }> {
+  const read = await checkCalendarConnection();
+  if (!read.ok) return read;
+  const c = credentials();
+  const start = new Date(Date.now() + 2 * 86_400_000);
+  try {
+    const ev = await gcal<GEvent>(`/calendars/${calId()}/events`, {
+      method: "POST",
+      body: JSON.stringify({
+        summary: "Sagoon website test — safe to ignore",
+        start: { dateTime: start.toISOString(), timeZone: TZ },
+        end: { dateTime: new Date(start.getTime() + 15 * 60_000).toISOString(), timeZone: TZ },
+        transparency: "transparent",
+      }),
+    });
+    await deleteCalendarEvent(ev.id);
+    return { ok: true, message: `Connected — the site can read and add lessons to ${c.calendarId}.` };
+  } catch (e) {
+    const detail = String((e as Error)?.message ?? e).slice(0, 400);
+    const d = detail.toLowerCase();
+    const message =
+      d.includes(" 403") || d.includes("forbidden") || d.includes("writer") || d.includes("requiredaccesslevel")
+        ? `The site can read your calendar but isn't allowed to add lessons to it. In Google Calendar → Settings → your calendar → Share with specific people, change ${c.email} to “Make changes to events”.`
+        : "Reading works, but adding a test event failed.";
+    return { ok: false, message, detail };
+  }
+}

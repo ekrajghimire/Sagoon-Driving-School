@@ -1,6 +1,9 @@
 import { prisma, getSettings, getInstructor } from "@/lib/db";
 import { requireStaff } from "@/lib/session";
-import { calendarConfigured, checkCalendarConnection } from "@/lib/google-calendar";
+import { calendarConfigured, checkCalendarWrite } from "@/lib/google-calendar";
+import { testEmailSetup } from "@/lib/email";
+import { sendPush } from "@/lib/push";
+import { fmtDateTime } from "@/lib/time";
 import { OWNER_ONLY } from "../_lib/roles";
 import { PageHeader } from "../_components/PageHeader";
 import { ActionForm } from "../_components/ActionForm";
@@ -24,21 +27,89 @@ function Status({ ok, label, hint }: { ok: boolean; label: string; hint: string 
   );
 }
 
-async function CalendarTest() {
-  const r = await checkCalendarConnection();
+function Result({ title, ok, message, detail, warn }: { title: string; ok: boolean; message: string; detail?: string; warn?: boolean }) {
+  const tone = ok ? "border-green-200 bg-green-50" : warn ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50";
   return (
-    <div role="status" className={`mt-3 rounded-xl p-3 text-sm ${r.ok ? "bg-green-50 text-ok" : "bg-red-50 text-danger"}`}>
-      <p className="font-semibold">{r.ok ? "✓ Google Calendar test passed" : "✗ Google Calendar test failed"}</p>
-      <p className="mt-1 text-ink">{r.message}</p>
-      {r.detail && <p className="mt-2 break-all font-mono text-xs text-muted">Google said: {r.detail}</p>}
-      <a href="/admin/settings?testCalendar=1#int-h" className="btn-outline btn-sm mt-3">Test again</a>
+    <li className={`rounded-xl border p-3 text-sm ${tone}`}>
+      <p className={`font-semibold ${ok ? "text-ok" : warn ? "text-amber-800" : "text-danger"}`}>
+        {ok ? "✓" : warn ? "!" : "✗"} {title}
+      </p>
+      <p className="mt-1 text-ink">{message}</p>
+      {detail && <p className="mt-2 break-all font-mono text-xs text-muted">Details: {detail}</p>}
+    </li>
+  );
+}
+
+/** Runs every integration for real (test email, calendar write, phone alert) and shows exactly what's wrong. */
+async function Diagnostics({ userId }: { userId: string }) {
+  const owner = (process.env.OWNER_EMAIL ?? "").split(",")[0]?.trim() ?? "";
+  const [email, calendar, devices, recent] = await Promise.all([
+    testEmailSetup(owner),
+    calendarConfigured()
+      ? checkCalendarWrite()
+      : Promise.resolve({ ok: false, message: "Google Calendar isn't set up: add GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in Vercel, then redeploy. Until then lessons won't appear in your calendar.", detail: undefined }),
+    prisma.pushSubscription.findMany({ where: { userId } }),
+    prisma.booking.findMany({ orderBy: { createdAt: "desc" }, take: 5, select: { id: true, customerName: true, startsAt: true, createdAt: true, createdByStaff: true, calendarSync: true, calendarError: true } }),
+  ]);
+  const push = devices.length
+    ? await sendPush(devices, { title: "🔔 Test alert — Sagoon Admin", body: "Phone alerts are working.", url: "/admin/app", tag: "test" })
+    : null;
+
+  return (
+    <div className="mt-4 space-y-3" role="status">
+      <ul className="space-y-2">
+        <Result title="Email" {...email} />
+        <Result title="Google Calendar" {...calendar} />
+        <Result
+          title="Phone alerts"
+          ok={Boolean(push?.sent)}
+          warn={!push}
+          message={
+            !push
+              ? "Alerts aren't turned on for any of your devices yet. On your phone open Admin → More → Phone app & alerts and tap Turn on alerts."
+              : push.sent
+                ? `Test alert sent to ${push.sent} device${push.sent === 1 ? "" : "s"}. Bookings you add yourself in the admin don't send alerts — only online bookings do.`
+                : "Your device(s) didn't accept the alert. Open Phone app & alerts on the phone and turn alerts off and on again."
+          }
+        />
+        <Result
+          title="Reminder schedule"
+          ok={Boolean(process.env.CRON_SECRET)}
+          warn
+          message={process.env.CRON_SECRET ? "CRON_SECRET is set. Make sure cron-job.org calls /api/cron every 15 minutes (see the setup guide)." : "CRON_SECRET isn't set, so reminders and the owner setup code won't work."}
+        />
+      </ul>
+      {recent.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-line">
+          <table className="table-x min-w-[520px]">
+            <caption className="px-3 pt-2 text-left text-xs font-semibold text-muted">Latest bookings — Google Calendar status</caption>
+            <thead><tr><th>Booked</th><th>Customer</th><th>Lesson</th><th>Calendar</th></tr></thead>
+            <tbody>
+              {recent.map((b) => (
+                <tr key={b.id}>
+                  <td className="whitespace-nowrap">{fmtDateTime(b.createdAt)}{b.createdByStaff ? " (by you)" : ""}</td>
+                  <td><a className="font-semibold text-brand-700 underline" href={`/admin/bookings/${b.id}`}>{b.customerName}</a></td>
+                  <td className="whitespace-nowrap">{fmtDateTime(b.startsAt)}</td>
+                  <td>
+                    <span className={b.calendarSync === "SYNCED" ? "text-ok" : b.calendarSync === "FAILED" ? "text-danger" : "text-muted"}>
+                      {{ SYNCED: "In calendar", FAILED: "Failed", PENDING: "Waiting", NOT_CONFIGURED: "Calendar not set up" }[b.calendarSync]}
+                    </span>
+                    {b.calendarError && <span className="block break-all text-xs text-muted">{b.calendarError.slice(0, 160)}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <a href="/admin/settings?check=1#int-h" className="btn-outline btn-sm">Run the checks again</a>
     </div>
   );
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ testCalendar?: string }> }) {
-  const { testCalendar } = await searchParams;
-  await requireStaff(OWNER_ONLY);
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ testCalendar?: string; check?: string }> }) {
+  const { testCalendar, check } = await searchParams;
+  const user = await requireStaff(OWNER_ONLY);
   const [s, instructor, vehicle] = await Promise.all([getSettings(), getInstructor(), prisma.vehicle.findFirst({ where: { active: true } })]);
 
   return (
@@ -62,10 +133,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <Status ok={has("OWNER_EMAIL")} label="Owner notifications" hint="OWNER_EMAIL — receives new booking & enquiry emails" />
         </ul>
         <p className="mt-2 text-xs text-muted">Secrets are set in your hosting provider&apos;s environment variables and are never shown here.</p>
-        {testCalendar ? (
-          <CalendarTest />
+        {check || testCalendar ? (
+          <Diagnostics userId={user.id} />
         ) : (
-          <a href="/admin/settings?testCalendar=1#int-h" className="btn-brand btn-sm mt-3">Test Google Calendar connection</a>
+          <div className="mt-3">
+            <a href="/admin/settings?check=1#int-h" className="btn-brand btn-sm">Check everything (sends a test email, calendar event and phone alert)</a>
+          </div>
         )}
       </section>
 
